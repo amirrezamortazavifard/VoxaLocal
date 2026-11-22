@@ -3,8 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { History, Search, Trash2, Copy, Download, Clock, Calendar, Check } from 'lucide-react';
 import { TranscriptRecord } from '../types/asr';
 import { exportAsFile } from '../utils/exportFormats';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export const HistoryView: React.FC = () => {
+  const { t } = useLanguage();
   const [records, setRecords] = useState<TranscriptRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<TranscriptRecord | null>(null);
@@ -36,7 +38,7 @@ export const HistoryView: React.FC = () => {
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm('آیا از پاکسازی کامل تاریخچه رونویسی‌ها اطمینان دارید؟')) return;
+    if (!window.confirm(t('confirmClearHistory'))) return;
     try {
       await invoke('clear_history');
       setRecords([]);
@@ -61,15 +63,15 @@ export const HistoryView: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header bar */}
-      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center space-x-3 space-x-reverse">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
             <History className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-100">تاریخچه محلی رونویسی‌ها (SQLite)</h2>
+            <h2 className="text-base font-bold text-slate-100">{t('historyTitle')}</h2>
             <p className="text-xs text-slate-400">
-              رونویسی‌ها فقط روی حافظه ذخیره‌سازی محلی کامپیوتر شما ذخیره می‌شوند و هیچ ارتباط ریموتی وجود ندارد.
+              {t('historySubtitle')}
             </p>
           </div>
         </div>
@@ -82,18 +84,18 @@ export const HistoryView: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="جستجو در متن رونویسی..."
-              className="w-full bg-navy-950 border border-slate-800 rounded-xl pl-3 pr-9 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/40"
+              placeholder={t('searchPlaceholder')}
+              className="w-full bg-navy-950 border border-slate-800 rounded-xl pl-3 pr-9 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/40 shadow-inner"
             />
           </div>
 
           {records.length > 0 && (
             <button
               onClick={handleClearAll}
-              className="flex items-center space-x-1.5 space-x-reverse px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-medium transition-colors shrink-0"
+              className="flex items-center space-x-1.5 space-x-reverse px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-medium transition-colors shrink-0 shadow-sm"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>پاکسازی کل تاریخچه</span>
+              <span>{t('clearAllHistory')}</span>
             </button>
           )}
         </div>
@@ -105,7 +107,7 @@ export const HistoryView: React.FC = () => {
         <div className="md:col-span-1 space-y-3 max-h-[600px] overflow-y-auto pr-1">
           {filtered.length === 0 ? (
             <div className="bg-navy-900/40 border border-slate-800/60 rounded-2xl p-8 text-center text-slate-500 text-xs">
-              رونویسی ذخیره‌شده‌ای یافت نشد.
+              {t('noHistory')}
             </div>
           ) : (
             filtered.map((record) => {
@@ -124,7 +126,7 @@ export const HistoryView: React.FC = () => {
                     <h3 className="text-xs font-semibold text-slate-200 truncate max-w-[170px]">
                       {record.title}
                     </h3>
-                    <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                    <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20" dir="ltr">
                       {record.language}
                     </span>
                   </div>
@@ -133,9 +135,9 @@ export const HistoryView: React.FC = () => {
                     {record.text}
                   </p>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                    <span>{record.wordCount} کلمه</span>
-                    <span>{record.durationSecs.toFixed(0)} ثانیه</span>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono" dir="ltr">
+                    <span>{record.wordCount} words</span>
+                    <span>{record.durationSecs.toFixed(0)}s</span>
                   </div>
                 </div>
               );
@@ -146,18 +148,18 @@ export const HistoryView: React.FC = () => {
         {/* Right Column: Detailed Record View */}
         <div className="md:col-span-2">
           {selectedRecord ? (
-            <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md space-y-4">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md space-y-4 shadow-xl">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800 flex-wrap gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-slate-100">{selectedRecord.title}</h3>
                   <div className="flex items-center space-x-3 space-x-reverse text-xs text-slate-500 mt-1">
                     <span className="flex items-center space-x-1 space-x-reverse">
-                      <Calendar className="w-3 h-3" />
+                      <Calendar className="w-3 h-3 text-cyan-400" />
                       <span>{selectedRecord.createdAt}</span>
                     </span>
                     <span className="flex items-center space-x-1 space-x-reverse">
-                      <Clock className="w-3 h-3" />
-                      <span>مدت: {selectedRecord.durationSecs.toFixed(1)}s</span>
+                      <Clock className="w-3 h-3 text-cyan-400" />
+                      <span dir="ltr">{selectedRecord.durationSecs.toFixed(1)}s</span>
                     </span>
                   </div>
                 </div>
@@ -165,14 +167,14 @@ export const HistoryView: React.FC = () => {
                 <div className="flex items-center space-x-2 space-x-reverse">
                   <button
                     onClick={() => handleCopy(selectedRecord.id, selectedRecord.text)}
-                    className="flex items-center space-x-1 space-x-reverse px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
+                    className="flex items-center space-x-1 space-x-reverse px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors shadow-sm"
                   >
                     {copiedId === selectedRecord.id ? (
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
-                    <span>{copiedId === selectedRecord.id ? 'کپی شد' : 'کپی متن'}</span>
+                    <span>{copiedId === selectedRecord.id ? t('copied') : t('copyText')}</span>
                   </button>
 
                   {selectedRecord.srtContent && (
@@ -180,8 +182,8 @@ export const HistoryView: React.FC = () => {
                       onClick={() =>
                         exportAsFile(selectedRecord.srtContent!, `${selectedRecord.title}.srt`)
                       }
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                      title="دانلود SRT"
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors shadow-sm"
+                      title="Download SRT"
                     >
                       <Download className="w-4 h-4" />
                     </button>
@@ -190,7 +192,7 @@ export const HistoryView: React.FC = () => {
                   <button
                     onClick={() => handleDelete(selectedRecord.id)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                    title="حذف این مورد"
+                    title={t('deleteItem')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -198,15 +200,15 @@ export const HistoryView: React.FC = () => {
               </div>
 
               {/* Text Area */}
-              <div className="bg-navy-950/70 p-5 rounded-xl text-slate-100 text-sm leading-relaxed max-h-96 overflow-y-auto select-text font-sans">
+              <div className="bg-navy-950/70 p-5 rounded-xl text-slate-100 text-sm leading-relaxed max-h-96 overflow-y-auto select-text font-sans shadow-inner">
                 {selectedRecord.text}
               </div>
 
               {/* SRT Preview (if available) */}
               {selectedRecord.srtContent && (
                 <div className="space-y-1">
-                  <span className="text-xs text-slate-400 font-semibold">پیش‌نمایش زیرنویس (SRT):</span>
-                  <pre className="bg-navy-950/60 p-3 rounded-xl text-xs text-cyan-300/80 font-mono max-h-40 overflow-y-auto" dir="ltr">
+                  <span className="text-xs text-slate-400 font-semibold">{t('srtPreview')}</span>
+                  <pre className="bg-navy-950/60 p-3 rounded-xl text-xs text-cyan-300/80 font-mono max-h-40 overflow-y-auto shadow-inner" dir="ltr">
                     {selectedRecord.srtContent}
                   </pre>
                 </div>
@@ -214,7 +216,7 @@ export const HistoryView: React.FC = () => {
             </div>
           ) : (
             <div className="bg-navy-900/40 border border-slate-800/60 rounded-2xl p-12 text-center text-slate-500 text-xs h-full flex flex-col items-center justify-center">
-              یک رونویسی را از لیست سمت راست انتخاب کنید تا جزئیات کامل و زیرنویس آن نمایش داده شود.
+              {t('selectHistoryItem')}
             </div>
           )}
         </div>

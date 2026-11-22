@@ -3,9 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-navy-950 text-slate-100 font-sans antialiased overflow-hidden select-none;
-    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+    @apply bg-navy-950 text-slate-100 antialiased overflow-hidden select-none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Tahoma, Vazirmatn, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   /* Custom scrollbar styling */
@@ -22,6 +29,74 @@
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(6, 182, 212, 0.4);
+    background: rgba(6, 182, 212, 0.5);
   }
+}
+
+/* Animations for Real-time Streaming Words */
+@keyframes wordAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 0.9;
+    transform: translateY(-1px) scale(1.02);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes redecodeFlash {
+  0% {
+    background-color: rgba(6, 182, 212, 0.45);
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.6);
+    transform: scale(1.06);
+  }
+  100% {
+    background-color: rgba(6, 182, 212, 0.12);
+    box-shadow: 0 0 0px transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes cursorBlink {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px #22d3ee;
+  }
+  50% {
+    opacity: 0.15;
+    box-shadow: none;
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(6, 182, 212, 0.5);
+  }
+}
+
+.animate-word-appear {
+  animation: wordAppear 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-redecode-flash {
+  animation: redecodeFlash 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-cursor-blink {
+  animation: cursorBlink 0.8s infinite;
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2s infinite ease-in-out;
 }

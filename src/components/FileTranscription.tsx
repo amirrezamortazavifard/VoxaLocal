@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { FileAudio, UploadCloud, Play, CheckCircle2, AlertCircle, Copy, Download, Save } from 'lucide-react';
 import { FileTranscriptionResult } from '../types/asr';
 import { exportAsFile } from '../utils/exportFormats';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface FileTranscriptionProps {
   onSaveToHistory: (title: string, text: string, srt: string) => Promise<void>;
@@ -14,6 +15,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
   onSaveToHistory,
   isModelLoaded,
 }) => {
+  const { t, language } = useLanguage();
   const [filePath, setFilePath] = useState('');
   const [fileName, setFileName] = useState('');
   const [languageMode, setLanguageMode] = useState<'fa' | 'en' | 'fa,en'>('fa');
@@ -45,11 +47,11 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
 
   const handleStartTranscribe = async () => {
     if (!filePath) {
-      setError('لطفاً ابتدا یک فایل صوتی انتخاب کنید.');
+      setError(language === 'fa' ? 'لطفاً ابتدا یک فایل صوتی انتخاب کنید.' : 'Please select an audio file first.');
       return;
     }
     if (!isModelLoaded) {
-      setError('مدل هنوز در حافظه RAM بارگذاری نشده است. لطفاً ابتدا از تب «مدیریت مدل‌ها» مدل را بارگذاری کنید.');
+      setError(language === 'fa' ? 'مدل هنوز در حافظه RAM بارگذاری نشده است. لطفاً ابتدا در تب مدیریت مدل‌ها آن را بارگذاری کنید.' : 'Model is not loaded in RAM. Please load models in the Model Manager tab.');
       return;
     }
 
@@ -65,7 +67,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
       });
       setResult(res);
     } catch (err: any) {
-      setError(`خطا در رونویسی فایل: ${String(err)}`);
+      setError(String(err));
     } finally {
       setIsProcessing(false);
     }
@@ -81,7 +83,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
   const handleSave = async () => {
     if (!result) return;
     try {
-      const title = `رونویسی فایل: ${fileName}`;
+      const title = `${fileName}`;
       await onSaveToHistory(title, result.text, result.srtContent);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -93,37 +95,37 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* File Upload / Picker Card */}
-      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md">
+      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl">
         <div className="flex items-center space-x-3 space-x-reverse mb-4">
           <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
             <FileAudio className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-100">رونویسی فایل صوتی آفلاین (File Transcription)</h2>
+            <h2 className="text-base font-bold text-slate-100">{t('fileTransTitle')}</h2>
             <p className="text-xs text-slate-400">
-              تبدیل دقیق صوت ضبط‌شده به متن کامل با الگوریتم گذر کامل (Full-Context Pass) و تفکیک برچسب‌های زمانی کلمات
+              {t('fileTransSubtitle')}
             </p>
           </div>
         </div>
 
-        {/* Dropzone / Picker container */}
+        {/* Dropzone container */}
         <div
           onClick={handleSelectFile}
-          className="border-2 border-dashed border-slate-700/80 hover:border-cyan-500/60 bg-navy-950/60 hover:bg-navy-950/80 p-8 rounded-2xl cursor-pointer transition-all flex flex-col items-center justify-center text-center mt-4"
+          className="border-2 border-dashed border-slate-700/80 hover:border-cyan-500/60 bg-navy-950/70 hover:bg-navy-950/90 p-8 rounded-2xl cursor-pointer transition-all flex flex-col items-center justify-center text-center mt-4 shadow-inner"
         >
-          <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-3 shadow-lg shadow-cyan-500/10">
             <UploadCloud className="w-6 h-6 text-cyan-400" />
           </div>
           {fileName ? (
             <div className="space-y-1">
               <p className="text-sm font-semibold text-cyan-300 font-mono" dir="ltr">{fileName}</p>
               <p className="text-xs text-slate-500" dir="ltr">{filePath}</p>
-              <span className="inline-block mt-2 text-[11px] text-cyan-400 underline">کلیک برای تغییر فایل</span>
+              <span className="inline-block mt-2 text-[11px] text-cyan-400 underline">{t('changeFile')}</span>
             </div>
           ) : (
             <div className="space-y-1">
-              <p className="text-sm font-medium text-slate-200">کلیک کنید تا فایل صوتی را انتخاب کنید</p>
-              <p className="text-xs text-slate-500">پشتیبانی از فرمت‌های WAV، MP3، FLAC، M4A، OGG</p>
+              <p className="text-sm font-medium text-slate-200">{t('dropzoneTitle')}</p>
+              <p className="text-xs text-slate-500">{t('dropzoneSubtitle')}</p>
             </div>
           )}
         </div>
@@ -131,28 +133,28 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
         {/* Settings Bar */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-5 border-t border-slate-800">
           <div>
-            <label className="text-xs text-slate-400 block mb-1">زبان رونویسی:</label>
+            <label className="text-xs text-slate-400 block mb-1">{t('transcriptionLang')}</label>
             <select
               value={languageMode}
               onChange={(e) => setLanguageMode(e.target.value as any)}
               className="w-full bg-navy-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500/50"
             >
-              <option value="fa">فارسی (Persian)</option>
-              <option value="en">انگلیسی (English)</option>
-              <option value="fa,en">فارسی + انگلیسی (انتخاب خودکار)</option>
+              <option value="fa">{t('langPersian')}</option>
+              <option value="en">{t('langEnglish')}</option>
+              <option value="fa,en">{t('langBoth')}</option>
             </select>
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 block mb-1">عرض پرتو جستجو (Beam Width):</label>
+            <label className="text-xs text-slate-400 block mb-1">{t('beamWidthLabel')}</label>
             <select
               value={beamWidth}
               onChange={(e) => setBeamWidth(Number(e.target.value))}
               className="w-full bg-navy-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500/50"
             >
-              <option value={1}>1 (Greedy - سریع‌ترین)</option>
-              <option value={2}>2 (Fast Beam)</option>
-              <option value={4}>4 (Default - بالاترین دقت)</option>
+              <option value={1}>{t('beamGreedy')}</option>
+              <option value={2}>{t('beamFast')}</option>
+              <option value={4}>{t('beamDefault')}</option>
             </select>
           </div>
 
@@ -163,7 +165,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
               className="w-full flex items-center justify-center space-x-2 space-x-reverse px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 disabled:opacity-40 transition-all"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>{isProcessing ? 'در حال رونویسی آفلاین...' : 'شروع رونویسی کامل'}</span>
+              <span>{isProcessing ? t('transcribingFile') : t('startFileTranscribe')}</span>
             </button>
           </div>
         </div>
@@ -179,27 +181,33 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
 
       {/* Transcription Result Card */}
       {result && (
-        <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md space-y-4 shadow-xl">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-800 flex-wrap gap-3">
             <div className="flex items-center space-x-4 space-x-reverse">
               <span className="text-xs text-slate-400">
-                مدت فایل: <span className="font-mono text-cyan-300 font-semibold">{result.durationSecs.toFixed(1)}s</span>
+                {t('fileDuration')}{' '}
+                <span className="font-mono text-cyan-300 font-semibold" dir="ltr">
+                  {result.durationSecs.toFixed(1)}s
+                </span>
               </span>
               <span className="text-xs text-slate-400">
-                کلمات: <span className="font-mono text-cyan-300 font-semibold">{result.words.length}</span>
+                {t('wordCount')}:{' '}
+                <span className="font-mono text-cyan-300 font-semibold" dir="ltr">
+                  {result.words.length}
+                </span>
               </span>
             </div>
 
             <div className="flex items-center space-x-2 space-x-reverse">
               {/* Tab Selector */}
-              <div className="flex bg-navy-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+              <div className="flex bg-navy-950 p-0.5 rounded-lg border border-slate-800 text-xs shadow-inner">
                 <button
                   onClick={() => setActiveView('text')}
                   className={`px-3 py-1 rounded transition-colors ${
                     activeView === 'text' ? 'bg-cyan-500/20 text-cyan-300 font-semibold' : 'text-slate-400'
                   }`}
                 >
-                  متن کامل
+                  {t('fullTextTab')}
                 </button>
                 <button
                   onClick={() => setActiveView('timestamps')}
@@ -207,7 +215,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
                     activeView === 'timestamps' ? 'bg-cyan-500/20 text-cyan-300 font-semibold' : 'text-slate-400'
                   }`}
                 >
-                  برچسب زمانی
+                  {t('timestampsTab')}
                 </button>
                 <button
                   onClick={() => setActiveView('srt')}
@@ -215,33 +223,33 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
                     activeView === 'srt' ? 'bg-cyan-500/20 text-cyan-300 font-semibold' : 'text-slate-400'
                   }`}
                 >
-                  زیرنویس (SRT)
+                  {t('srtTab')}
                 </button>
               </div>
 
               {/* Copy */}
               <button
                 onClick={handleCopy}
-                className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors shadow-sm"
               >
                 {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'کپی شد' : 'کپی'}</span>
+                <span>{copied ? t('copied') : t('copyText')}</span>
               </button>
 
               {/* Save */}
               <button
                 onClick={handleSave}
-                className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 transition-colors"
+                className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 transition-colors shadow-sm"
               >
                 {saved ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Save className="w-3.5 h-3.5" />}
-                <span>{saved ? 'ذخیره شد' : 'ذخیره در تاریخچه'}</span>
+                <span>{saved ? t('saved') : t('saveToHistory')}</span>
               </button>
 
               {/* Export SRT */}
               <button
                 onClick={() => exportAsFile(result.srtContent, `${fileName}.srt`)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                title="دانلود فایل SRT"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors shadow-sm"
+                title="Download SRT"
               >
                 <Download className="w-4 h-4" />
               </button>
@@ -250,21 +258,21 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
 
           {/* View Mode Contents */}
           {activeView === 'text' && (
-            <div className="p-4 bg-navy-950/70 rounded-xl text-base text-slate-100 leading-relaxed max-h-96 overflow-y-auto select-text font-sans">
+            <div className="p-4 bg-navy-950/70 rounded-xl text-base text-slate-100 leading-relaxed max-h-96 overflow-y-auto select-text font-sans shadow-inner">
               {result.text}
             </div>
           )}
 
           {activeView === 'timestamps' && (
-            <div className="p-3 bg-navy-950/70 rounded-xl max-h-96 overflow-y-auto font-mono text-xs text-slate-300">
+            <div className="p-3 bg-navy-950/70 rounded-xl max-h-96 overflow-y-auto font-mono text-xs text-slate-300 shadow-inner">
               <div className="grid grid-cols-4 gap-2 pb-2 mb-2 border-b border-slate-800 text-slate-500 font-sans">
-                <span>کلمه</span>
-                <span>شروع (ثانیه)</span>
-                <span>پایان (ثانیه)</span>
-                <span>مدت</span>
+                <span>{t('wordCol')}</span>
+                <span>{t('startCol')}</span>
+                <span>{t('endCol')}</span>
+                <span>{t('durationCol')}</span>
               </div>
               {result.words.map((w, idx) => (
-                <div key={idx} className="grid grid-cols-4 gap-2 py-1 border-b border-slate-800/40 hover:bg-slate-800/30">
+                <div key={idx} className="grid grid-cols-4 gap-2 py-1 border-b border-slate-800/40 hover:bg-slate-800/30" dir="ltr">
                   <span className="font-sans text-slate-200">{w.text}</span>
                   <span className="text-cyan-400">{w.start.toFixed(2)}s</span>
                   <span className="text-cyan-400">{w.end.toFixed(2)}s</span>
@@ -275,7 +283,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
           )}
 
           {activeView === 'srt' && (
-            <pre className="p-4 bg-navy-950/70 rounded-xl text-xs text-cyan-300/90 font-mono max-h-96 overflow-y-auto select-text leading-relaxed" dir="ltr">
+            <pre className="p-4 bg-navy-950/70 rounded-xl text-xs text-cyan-300/90 font-mono max-h-96 overflow-y-auto select-text leading-relaxed shadow-inner" dir="ltr">
               {result.srtContent}
             </pre>
           )}

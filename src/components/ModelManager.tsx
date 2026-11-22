@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Cpu, CheckCircle2, AlertTriangle, HardDrive, RefreshCw, Layers, FolderDown } from 'lucide-react';
 import { ModelInfo } from '../types/asr';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface ModelManagerProps {
   modelInfo: ModelInfo | null;
@@ -17,6 +18,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
   onLoad,
   onUnload,
 }) => {
+  const { t } = useLanguage();
   const [asrPath, setAsrPath] = useState('');
   const [vadPath, setVadPath] = useState('');
   const [isImporting, setIsImporting] = useState(false);
@@ -54,7 +56,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
 
   const handleImport = async () => {
     if (!asrPath || !vadPath) {
-      setActionError('لطفاً هر دو فایل مدل ASR و Silero VAD را انتخاب نمایید.');
+      setActionError('Please select both ASR and Silero VAD model files / لطفاً هر دو فایل مدل را انتخاب نمایید.');
       return;
     }
 
@@ -68,7 +70,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
         vadPath,
       });
       await onRefresh();
-      setSuccessMessage('مدل‌های رسمی با موفقیت اعتبارسنجی و در حافظه محلی نرم‌افزار نصب شدند.');
+      setSuccessMessage(t('modelInstallSuccess'));
     } catch (err: any) {
       setActionError(String(err));
     } finally {
@@ -82,7 +84,6 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
     setSuccessMessage(null);
 
     try {
-      // Relative paths to the repository's official models
       const bundledAsr = '../vendor/tinyasr/models/en-fa.tzf.gz';
       const bundledVad = '../vendor/tinyasr/models/silero_vad.onnx.gz';
 
@@ -91,9 +92,9 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
         vadPath: bundledVad,
       });
       await onRefresh();
-      setSuccessMessage('مدل‌های رسمی Persian-English en-fa و Silero VAD با موفقیت نصب و فعال شدند.');
+      setSuccessMessage(t('modelInstallSuccess'));
     } catch (err: any) {
-      setActionError(`خطا در نصب مدل‌های پیش‌فرض: ${String(err)}`);
+      setActionError(`Error importing bundled models: ${String(err)}`);
     } finally {
       setIsImporting(false);
     }
@@ -105,7 +106,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
     try {
       await onLoad();
       await onRefresh();
-      setSuccessMessage('مدل با موفقیت در رم بارگذاری شد و موتور آماده تشخیص گفتار است.');
+      setSuccessMessage(t('modelLoadSuccess'));
     } catch (err: any) {
       setActionError(String(err));
     } finally {
@@ -119,7 +120,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
     try {
       await onUnload();
       await onRefresh();
-      setSuccessMessage('مدل از حافظه رم خارج شد.');
+      setSuccessMessage(t('modelUnloadSuccess'));
     } catch (err: any) {
       setActionError(String(err));
     } finally {
@@ -137,16 +138,16 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Title Card */}
-      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md">
+      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3 space-x-reverse">
             <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
               <Cpu className="w-5 h-5 text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-100">مدیریت و بارگذاری مدل‌های TinyASR</h2>
+              <h2 className="text-base font-bold text-slate-100">{t('modelManagerTitle')}</h2>
               <p className="text-xs text-slate-400">
-                پشتیبانی از مدل رسمی دوزبانه فارسی-انگلیسی Zipformer2 به همراه Silero VAD v5
+                {t('modelManagerSubtitle')}
               </p>
             </div>
           </div>
@@ -154,7 +155,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
           <button
             onClick={onRefresh}
             className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 transition-colors"
-            title="بروزرسانی وضعیت"
+            title={t('refreshStatus')}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -162,43 +163,43 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
 
         {/* Current Status Box */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl">
-            <span className="text-[11px] text-slate-400 block mb-1">وضعیت نصب</span>
+          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl shadow-inner">
+            <span className="text-[11px] text-slate-400 block mb-1">{t('installStatus')}</span>
             <div className="flex items-center space-x-2 space-x-reverse">
               {modelInfo?.isInstalled ? (
                 <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-semibold text-emerald-300">نصب شده</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="text-xs font-semibold text-emerald-300">{t('installed')}</span>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-semibold text-amber-300">نصب نشده</span>
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="text-xs font-semibold text-amber-300">{t('notInstalled')}</span>
                 </>
               )}
             </div>
           </div>
 
-          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl">
-            <span className="text-[11px] text-slate-400 block mb-1">وضعیت حافظه (RAM)</span>
+          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl shadow-inner">
+            <span className="text-[11px] text-slate-400 block mb-1">{t('ramStatus')}</span>
             <div className="flex items-center space-x-2 space-x-reverse">
               {modelInfo?.isLoaded ? (
                 <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                  <span className="text-xs font-semibold text-cyan-300">بارگذاری شده (آماده)</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shrink-0"></span>
+                  <span className="text-xs font-semibold text-cyan-300">{t('loadedInRam')}</span>
                 </>
               ) : (
                 <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
-                  <span className="text-xs font-semibold text-slate-400">تخلیه شده</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-600 shrink-0"></span>
+                  <span className="text-xs font-semibold text-slate-400">{t('unloadedFromRam')}</span>
                 </>
               )}
             </div>
           </div>
 
-          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl">
-            <span className="text-[11px] text-slate-400 block mb-1">زبان‌های مدل</span>
-            <div className="flex items-center space-x-1.5 space-x-reverse">
+          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl shadow-inner">
+            <span className="text-[11px] text-slate-400 block mb-1">{t('modelLanguages')}</span>
+            <div className="flex items-center space-x-1.5 space-x-reverse" dir="ltr">
               {modelInfo?.languages?.map((lang) => (
                 <span
                   key={lang}
@@ -210,9 +211,9 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
             </div>
           </div>
 
-          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl">
-            <span className="text-[11px] text-slate-400 block mb-1">حجم مدل‌ها</span>
-            <span className="text-xs font-mono text-slate-200">
+          <div className="bg-navy-950/80 border border-slate-800 p-4 rounded-xl shadow-inner">
+            <span className="text-[11px] text-slate-400 block mb-1">{t('modelSizes')}</span>
+            <span className="text-xs font-mono text-slate-200" dir="ltr">
               {asrSizeMb} MiB / {vadSizeMb} MiB
             </span>
           </div>
@@ -227,7 +228,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
               className="flex items-center space-x-2 space-x-reverse px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 disabled:opacity-50 transition-all"
             >
               <Cpu className="w-4 h-4" />
-              <span>{isLoading ? 'در حال بارگذاری...' : 'بارگذاری مدل در حافظه RAM'}</span>
+              <span>{isLoading ? t('loadingModel') : t('loadModelBtn')}</span>
             </button>
           )}
 
@@ -237,17 +238,17 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
               disabled={isLoading}
               className="flex items-center space-x-2 space-x-reverse px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 disabled:opacity-50 transition-all"
             >
-              <span>{isLoading ? 'در حال تخلیه...' : 'تخلیه مدل از RAM'}</span>
+              <span>{isLoading ? t('unloadingModel') : t('unloadModelBtn')}</span>
             </button>
           )}
 
           <button
             onClick={handleImportBundled}
             disabled={isImporting}
-            className="flex items-center space-x-2 space-x-reverse px-4 py-2 rounded-xl bg-navy-950 hover:bg-slate-800/80 text-cyan-400 text-xs font-medium border border-cyan-500/30 transition-all"
+            className="flex items-center space-x-2 space-x-reverse px-4 py-2 rounded-xl bg-navy-950 hover:bg-slate-800/80 text-cyan-400 text-xs font-medium border border-cyan-500/30 transition-all shadow-sm"
           >
             <FolderDown className="w-4 h-4" />
-            <span>نصب خودکار مدل‌های داخلی پروژه</span>
+            <span>{t('autoInstallBundled')}</span>
           </button>
         </div>
 
@@ -268,24 +269,24 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
       </div>
 
       {/* Manual File Import Form */}
-      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md">
-        <h3 className="text-sm font-bold text-slate-100 mb-2">انتخاب دستی فایل‌های مدل از سیستم</h3>
-        <p className="text-xs text-slate-400 mb-6">
-          می‌توانید فایل‌های دانلود شده مدل بازشناسی (en-fa.tzf یا en-fa.tzf.gz) و مدل VAD (silero_vad.onnx یا silero_vad.onnx.gz) را به صورت دستی وارد کنید:
+      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl">
+        <h3 className="text-sm font-bold text-slate-100 mb-2">{t('manualSelectTitle')}</h3>
+        <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+          {t('manualSelectDesc')}
         </p>
 
         <div className="space-y-4">
           {/* ASR Model Picker */}
           <div>
             <label className="text-xs font-medium text-slate-300 block mb-1.5">
-              فایل مدل تشخیص گفتار (en-fa.tzf یا en-fa.tzf.gz):
+              {t('asrFileLabel')}
             </label>
             <div className="flex items-center space-x-2 space-x-reverse">
               <input
                 type="text"
                 readOnly
                 value={asrPath}
-                placeholder="مسیری انتخاب نشده است..."
+                placeholder="..."
                 className="flex-1 bg-navy-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 font-mono placeholder:text-slate-600 focus:outline-none"
                 dir="ltr"
               />
@@ -293,7 +294,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
                 onClick={handleSelectAsrFile}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors shrink-0"
               >
-                انتخاب فایل...
+                {t('browseFile')}
               </button>
             </div>
           </div>
@@ -301,14 +302,14 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
           {/* VAD Model Picker */}
           <div>
             <label className="text-xs font-medium text-slate-300 block mb-1.5">
-              فایل مدل Silero VAD (silero_vad.onnx یا silero_vad.onnx.gz):
+              {t('vadFileLabel')}
             </label>
             <div className="flex items-center space-x-2 space-x-reverse">
               <input
                 type="text"
                 readOnly
                 value={vadPath}
-                placeholder="مسیری انتخاب نشده است..."
+                placeholder="..."
                 className="flex-1 bg-navy-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 font-mono placeholder:text-slate-600 focus:outline-none"
                 dir="ltr"
               />
@@ -316,7 +317,7 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
                 onClick={handleSelectVadFile}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors shrink-0"
               >
-                انتخاب فایل...
+                {t('browseFile')}
               </button>
             </div>
           </div>
@@ -325,26 +326,26 @@ export const ModelManager: React.FC<ModelManagerProps> = ({
             <button
               onClick={handleImport}
               disabled={isImporting || !asrPath || !vadPath}
-              className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs disabled:opacity-40 transition-all"
+              className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs disabled:opacity-40 transition-all shadow-lg shadow-cyan-500/20"
             >
               <HardDrive className="w-4 h-4" />
-              <span>{isImporting ? 'در حال بررسی و اعتبارسنجی...' : 'بررسی و نصب مدل‌های انتخابی'}</span>
+              <span>{isImporting ? t('validating') : t('validateAndInstall')}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Model Architecture & Provenance Info */}
-      <div className="bg-navy-950/40 border border-slate-800/60 rounded-2xl p-5 text-xs text-slate-400 space-y-2">
+      {/* Model Technical Specifications */}
+      <div className="bg-navy-950/50 border border-slate-800/70 rounded-2xl p-5 text-xs text-slate-400 space-y-2 shadow-inner">
         <div className="flex items-center space-x-2 space-x-reverse text-slate-200 font-semibold">
           <Layers className="w-4 h-4 text-cyan-400" />
-          <span>مشخصات فنی مدل رسمی TinyASR Zipformer2</span>
+          <span>{t('techSpecsTitle')}</span>
         </div>
-        <ul className="list-disc list-inside space-y-1 text-slate-400 mr-2 leading-relaxed">
-          <li>نام مدل: <span className="font-mono text-cyan-300">en-fa.tzf</span> (~60M parameters, Zipformer2 RNN-T / TDT).</li>
-          <li>کدک و کوانتیزاسیون: وزن‌های int4 فشرده به همراه ماتریس‌های SIMD بومی x86_64 AVX2 / AVX-512 VNNI.</li>
-          <li>تشخیص فعالیت صوتی: <span className="font-mono text-cyan-300">Silero VAD v5</span> (16,000 Hz, STFT Convolutions + LSTM).</li>
-          <li>مجوز: GNU General Public License v3.0 or later (GPL-3.0-or-later).</li>
+        <ul className="list-disc list-inside space-y-1 text-slate-400 leading-relaxed">
+          <li>{t('techSpec1')}</li>
+          <li>{t('techSpec2')}</li>
+          <li>{t('techSpec3')}</li>
+          <li>{t('techSpec4')}</li>
         </ul>
       </div>
     </div>

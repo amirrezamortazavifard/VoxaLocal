@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Copy, Trash2, Download, Save, Check, Clock, Sparkles } from 'lucide-react';
+import { Copy, Trash2, Download, Save, Check, Clock, Sparkles, Radio } from 'lucide-react';
 import { WordItem } from '../types/asr';
 import { formatPersianTranscript } from '../utils/persianTypography';
 import { exportAsFile, exportWordsAsJson, generateSrtFromWords, wordsToPlainString } from '../utils/exportFormats';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface TranscriptViewProps {
   committedWords: WordItem[];
@@ -27,6 +28,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
   onClear,
   onSaveToHistory,
 }) => {
+  const { t, language } = useLanguage();
   const [usePersianTypography, setUsePersianTypography] = useState(true);
   const [showTimestamps, setShowTimestamps] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -34,7 +36,12 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   const rawText = wordsToPlainString(allWords);
-  const displayText = usePersianTypography ? formatPersianTranscript(rawText) : rawText;
+  const displayText = usePersianTypography && (activeLanguage === 'fa' || language === 'fa')
+    ? formatPersianTranscript(rawText)
+    : rawText;
+
+  const isRecording = status === 'recording';
+  const hasUncommitted = openWords.length > 0 || tailWords.length > 0;
 
   const handleCopy = async () => {
     if (!displayText) return;
@@ -47,7 +54,8 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
     if (!allWords.length || isSaving) return;
     setIsSaving(true);
     try {
-      const title = `رونویسی ${new Date().toLocaleTimeString('fa-IR')} (${allWords.length} کلمه)`;
+      const dateStr = new Date().toLocaleTimeString(language === 'fa' ? 'fa-IR' : 'en-US');
+      const title = `${t('appTitle')} - ${dateStr} (${allWords.length} ${t('wordCount')})`;
       const srt = generateSrtFromWords(allWords);
       await onSaveToHistory(title, displayText, srt);
       setSaved(true);
@@ -80,25 +88,28 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-navy-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md overflow-hidden shadow-2xl">
-      {/* Workspace Sub-header Toolbar */}
-      <div className="px-5 py-3 border-b border-slate-800/80 bg-navy-950/60 flex items-center justify-between">
+    <div className="flex flex-col h-full bg-navy-900/70 border border-slate-800/80 rounded-2xl backdrop-blur-md overflow-hidden shadow-2xl transition-all">
+      {/* Sub-header Controls Bar */}
+      <div className="px-5 py-3 border-b border-slate-800/80 bg-navy-950/70 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center space-x-3 space-x-reverse">
-          <div className="flex items-center space-x-1.5 space-x-reverse text-xs text-slate-400 font-mono">
+          {/* Recording Timer */}
+          <div className="flex items-center space-x-1.5 space-x-reverse text-xs text-slate-300 font-mono bg-navy-900/80 px-2.5 py-1 rounded-lg border border-slate-800">
             <Clock className="w-3.5 h-3.5 text-cyan-400" />
-            <span>مدت: {formatDuration(recordingDuration)}</span>
+            <span dir="ltr">{formatDuration(recordingDuration)}</span>
           </div>
 
           <span className="text-slate-700">|</span>
 
+          {/* Word Count */}
           <div className="text-xs text-slate-400">
-            تعداد کلمات: <span className="font-mono text-cyan-300 font-semibold">{allWords.length}</span>
+            {t('wordCount')}: <span className="font-mono text-cyan-300 font-bold" dir="ltr">{allWords.length}</span>
           </div>
 
+          {/* Re-decoding active badge */}
           {openWords.length > 0 && (
-            <div className="flex items-center space-x-1 space-x-reverse px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 text-[11px] border border-cyan-500/20 animate-pulse">
-              <Sparkles className="w-3 h-3" />
-              <span>بازگشایی متن کامل (Re-decoding)</span>
+            <div className="flex items-center space-x-1.5 space-x-reverse px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 text-[11px] border border-cyan-500/30 animate-pulse shadow-sm shadow-cyan-500/20">
+              <Sparkles className="w-3 h-3 text-cyan-400" />
+              <span>{t('redecodingActive')}</span>
             </div>
           )}
         </div>
@@ -110,24 +121,24 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
             onClick={() => setUsePersianTypography(!usePersianTypography)}
             className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
               usePersianTypography
-                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 shadow-sm'
                 : 'bg-navy-950 text-slate-400 border-slate-800 hover:text-slate-200'
             }`}
             title="اصلاح نیم‌فاصله‌ها و کاراکترهای عربی به فارسی"
           >
-            نیم‌فاصله هوشمند (ZWNJ)
+            {t('smartZwnj')}
           </button>
 
-          {/* Timestamps view toggle */}
+          {/* Timestamps toggle */}
           <button
             onClick={() => setShowTimestamps(!showTimestamps)}
             className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
               showTimestamps
-                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 shadow-sm'
                 : 'bg-navy-950 text-slate-400 border-slate-800 hover:text-slate-200'
             }`}
           >
-            برچسب زمانی
+            {t('timestamps')}
           </button>
 
           <span className="text-slate-700">|</span>
@@ -136,49 +147,49 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
           <button
             onClick={handleCopy}
             disabled={!allWords.length}
-            className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 disabled:opacity-40 transition-colors"
+            className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-slate-200 disabled:opacity-40 transition-colors shadow-sm"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'کپی شد' : 'کپی متن'}</span>
+            <span>{copied ? t('copied') : t('copyText')}</span>
           </button>
 
           {/* Save to History */}
           <button
             onClick={handleSave}
             disabled={!allWords.length || isSaving}
-            className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 disabled:opacity-40 transition-colors"
+            className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 disabled:opacity-40 transition-colors shadow-sm"
           >
             {saved ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Save className="w-3.5 h-3.5" />}
-            <span>{saved ? 'ذخیره شد' : 'ذخیره در تاریخچه'}</span>
+            <span>{saved ? t('saved') : t('saveToHistory')}</span>
           </button>
 
           {/* Export Dropdown */}
           <div className="relative group">
             <button
               disabled={!allWords.length}
-              className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 disabled:opacity-40 transition-colors"
+              className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-slate-200 disabled:opacity-40 transition-colors shadow-sm"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>خروجی</span>
+              <span>{t('export')}</span>
             </button>
-            <div className="absolute left-0 mt-1 w-36 bg-navy-950 border border-slate-800 rounded-xl shadow-xl py-1 hidden group-hover:block z-30">
+            <div className="absolute left-0 mt-1 w-40 bg-navy-950 border border-slate-800 rounded-xl shadow-2xl py-1.5 hidden group-hover:block z-30">
               <button
                 onClick={handleExportTxt}
-                className="w-full text-right px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800/70 hover:text-cyan-300"
+                className="w-full text-right px-3.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-cyan-300 transition-colors"
               >
-                متن خام (TXT)
+                {t('exportTxt')}
               </button>
               <button
                 onClick={handleExportSrt}
-                className="w-full text-right px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800/70 hover:text-cyan-300"
+                className="w-full text-right px-3.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-cyan-300 transition-colors"
               >
-                زیرنویس (SRT)
+                {t('exportSrt')}
               </button>
               <button
                 onClick={handleExportJson}
-                className="w-full text-right px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800/70 hover:text-cyan-300"
+                className="w-full text-right px-3.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-cyan-300 transition-colors"
               >
-                داده زمانی (JSON)
+                {t('exportJson')}
               </button>
             </div>
           </div>
@@ -186,47 +197,78 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
           {/* Clear Button */}
           <button
             onClick={onClear}
-            disabled={!allWords.length && status === 'idle'}
+            disabled={!allWords.length && !isRecording}
             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 transition-colors"
-            title="پاکسازی متن"
+            title={t('clearText')}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Main Transcript Body */}
-      <div className="flex-1 p-6 overflow-y-auto leading-loose text-base font-sans select-text scroll-smooth">
-        {allWords.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 py-16">
-            <div className="w-16 h-16 rounded-2xl bg-navy-950 border border-slate-800 flex items-center justify-center mb-4">
-              <Clock className="w-8 h-8 text-slate-600" />
+      {/* Main Content Area */}
+      <div className="flex-1 p-6 overflow-y-auto leading-loose text-base font-sans select-text scroll-smooth space-y-5">
+        {allWords.length === 0 && !isRecording ? (
+          <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center text-slate-500 py-16">
+            <div className="w-16 h-16 rounded-3xl bg-navy-950 border border-slate-800/90 flex items-center justify-center mb-4 shadow-xl">
+              <Clock className="w-8 h-8 text-cyan-500/60" />
             </div>
-            <p className="text-sm font-medium text-slate-300 mb-1">استودیو آماده ضبط است</p>
-            <p className="text-xs text-slate-500 max-w-sm">
-              دکمه قرمز ضبط را فشار دهید یا صحبت کنید. متن به صورت زنده و با بازگشایی خودکار هوشمند نمایان خواهد شد.
+            <p className="text-sm font-semibold text-slate-200 mb-1.5">{t('studioReadyTitle')}</p>
+            <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+              {t('studioReadyDesc')}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Legend info */}
+            {/* Visual distinction legend */}
             <div className="flex items-center space-x-4 space-x-reverse text-[11px] text-slate-400 pb-2 border-b border-slate-800/40">
-              <span className="flex items-center space-x-1 space-x-reverse">
-                <span className="w-2 h-2 rounded-full bg-slate-200"></span>
-                <span>کلمات نهایی‌شده (ثابت)</span>
+              <span className="flex items-center space-x-1.5 space-x-reverse">
+                <span className="w-2 h-2 rounded-full bg-slate-100 shadow-sm shadow-slate-100/50"></span>
+                <span>{t('legendFinal')}</span>
               </span>
-              <span className="flex items-center space-x-1 space-x-reverse">
-                <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-                <span>بازگشایی متن کامل (Re-decoded)</span>
+              <span className="flex items-center space-x-1.5 space-x-reverse">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span>
+                <span>{t('legendRedecoded')}</span>
               </span>
-              <span className="flex items-center space-x-1 space-x-reverse">
-                <span className="w-2 h-2 rounded-full bg-cyan-300/60"></span>
-                <span>جریان استریم موقت</span>
+              <span className="flex items-center space-x-1.5 space-x-reverse">
+                <span className="w-2 h-2 rounded-full bg-cyan-300/60 animate-pulse"></span>
+                <span>{t('legendProvisional')}</span>
               </span>
             </div>
 
-            {/* Word sequence rendering with visual states */}
-            <div className="text-lg leading-relaxed text-slate-100 flex flex-wrap gap-x-1.5 gap-y-1">
+            {/* Live Streaming Active Card (if recording and speaking) */}
+            {isRecording && hasUncommitted && (
+              <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/40 via-navy-900/60 to-navy-950/40 border border-cyan-500/30 shadow-lg shadow-cyan-500/10 transition-all animate-glow-pulse mb-4">
+                <div className="flex items-center space-x-2 space-x-reverse mb-2">
+                  <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                  <span className="text-[10px] font-mono tracking-wider uppercase text-cyan-400 font-semibold" dir="ltr">
+                    ● {t('liveStreamPill')}
+                  </span>
+                </div>
+                <div className="text-lg leading-relaxed text-cyan-200 font-medium flex flex-wrap gap-x-1.5 gap-y-1 items-baseline">
+                  {openWords.map((word, idx) => (
+                    <WordSpan
+                      key={`hero-open-${idx}-${word.start}`}
+                      word={word}
+                      type="open"
+                      showTimestamp={showTimestamps}
+                    />
+                  ))}
+                  {tailWords.map((word, idx) => (
+                    <WordSpan
+                      key={`hero-tail-${idx}-${word.start}`}
+                      word={word}
+                      type="tail"
+                      showTimestamp={showTimestamps}
+                    />
+                  ))}
+                  <span className="inline-block w-2 h-5 bg-cyan-400 ml-1 rounded-sm animate-cursor-blink shadow-sm shadow-cyan-400" />
+                </div>
+              </div>
+            )}
+
+            {/* Complete Word Flow */}
+            <div className="text-lg leading-relaxed text-slate-100 flex flex-wrap gap-x-1.5 gap-y-1.5">
               {/* 1. Finalized Committed words */}
               {committedWords.map((word, idx) => (
                 <WordSpan
@@ -256,6 +298,11 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
                   showTimestamp={showTimestamps}
                 />
               ))}
+
+              {/* Live typing pulse cursor when recording */}
+              {isRecording && (
+                <span className="inline-block w-1.5 h-5 bg-cyan-400 rounded-full animate-cursor-blink self-center mr-0.5" />
+              )}
             </div>
           </div>
         )}
@@ -275,9 +322,11 @@ const WordSpan: React.FC<WordSpanProps> = ({ word, type, showTimestamp }) => {
 
   let styleClasses = 'text-slate-100';
   if (type === 'open') {
-    styleClasses = 'text-cyan-300 bg-cyan-500/10 px-1 py-0.5 rounded border border-cyan-500/30 font-medium transition-all duration-150';
+    styleClasses = 'text-cyan-300 bg-cyan-500/15 px-1.5 py-0.5 rounded-lg border border-cyan-400/40 font-semibold animate-redecode-flash shadow-sm shadow-cyan-500/20';
   } else if (type === 'tail') {
-    styleClasses = 'text-cyan-400/80 italic animate-pulse';
+    styleClasses = 'text-cyan-400/90 font-medium italic animate-word-appear';
+  } else {
+    styleClasses = 'text-slate-100 hover:text-cyan-200 transition-colors';
   }
 
   return (
@@ -294,7 +343,10 @@ const WordSpan: React.FC<WordSpanProps> = ({ word, type, showTimestamp }) => {
       )}
 
       {/* Timestamp tooltip on hover */}
-      <span className="pointer-events-none absolute bottom-full mb-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-navy-950 border border-slate-700 text-[10px] font-mono text-cyan-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">
+      <span
+        className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-navy-950 border border-slate-700 text-[10px] font-mono text-cyan-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30"
+        dir="ltr"
+      >
         {word.start.toFixed(2)}s - {word.end.toFixed(2)}s
       </span>
     </span>
