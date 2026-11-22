@@ -1,0 +1,223 @@
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
+use flate2::read::GzDecoder;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfo {
+    pub is_installed: bool,
+    pub is_loaded: bool,
+    pub asr_filename: Option<String>,
+    pub vad_filename: Option<String>,
+    pub asr_size_bytes: u64,
+    pub vad_size_bytes: u64,
+    pub version: u32,
+    pub languages: Vec<String>,
+    pub parameter_count_millions: f32,
+    pub status: String, // "not_installed" | "ready" | "loaded" | "error"
+    pub error_message: Option<String>,
+}
+
+impl Default for ModelInfo {
+    fn default() -> Self {
+        Self {
+            is_installed: false,
+            is_loaded: false,
+            asr_filename: None,
+            vad_filename: None,
+            asr_size_bytes: 0,
+            vad_size_bytes: 0,
+            version: 4,
+            languages: vec!["fa".to_string(), "en".to_string()],
+            parameter_count_millions: 60.0,
+            status: "not_installed".to_string(),
+            error_message: None,
+        }
+    }
+}
+
+pub struct ModelManager {
+    models_dir: PathBuf,
+    loaded_models: Arc<RwLock<Option<Arc<tinyasr::Models>>>>,
+    info: Arc<RwLock<ModelInfo>>,
+}
+
+fn decompress_if_gzipped(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    if bytes.starts_with(&[0x1f, 0x8b]) {
+        let mut decoder = GzDecoder::new(bytes);
+        let mut out = Vec::new();
+        decoder
+            .read_to_end(&mut out)
+            .map_err(|e| format!("Failed to decompress gzip archive: {e}"))?;
+        Ok(out)
+    } else {
+        Ok(bytes.to_vec())
+    }
+}
+
+impl ModelManager {
+    pub fn new(app_local_data_dir: &Path) -> Self {
+        let models_dir = app_local_data_dir.join("models");
+        let _ = fs::create_dir_all(&models_dir);
+
+        let manager = Self {
+            models_dir,
+            loaded_models: Arc::new(RwLock::new(None)),
+            info: Arc::new(RwLock::new(ModelInfo::default())),
+        };
+
+        manager.refresh_status();
+        manager
+    }
+
+    pub fn models_dir(&self) -> &Path {
+        &self.models_dir
+    }
+
+    pub fn loaded_models(&self) -> Option<Arc<tinyasr::Models>> {
+        self.loaded_models.read().clone()
+    }
+
+    pub fn get_info(&self) -> ModelInfo {
+        self.info.read().clone()
+    }
+
+    pub fn refresh_status(&self) {
+        let asr_path = self.models_dir.join("en-fa.tzf");
+        let vad_path = self.models_dir.join("silero_vad.onnx");
+
+        let mut info = self.info.write();
+        let is_loaded = self.loaded_models.read().is_some();
+
+        if asr_path.exists() && vad_path.exists() {
+            let asr_size = fs::metadata(&asr_path).map(|m| m.len()).unwrap_or(0);
+            let vad_size = fs::metadata(&vad_path).map(|m| m.len()).unwrap_or(0);
+
+            info.is_installed = true;
+            info.is_loaded = is_loaded;
+            info.asr_filename = Some("en-fa.tzf".to_string());
+            info.vad_filename = Some("silero_vad.onnx".to_string());
+            info.asr_size_bytes = asr_size;
+            info.vad_size_bytes = vad_size;
+            info.status = if is_loaded { "loaded".to_string() } else { "ready".to_string() };
+            info.error_message = None;
+        } else {
+            info.is_installed = false;
+            info.is_loaded = false;
+            info.status = "not_installed".to_string();
+            info.error_message = None;
+        }
+    }
+
+    pub fn import_model_files(&self, asr_source: &Path, vad_source: &Path) -> Result<ModelInfo, String> {
+        log::info!("Importing ASR model from {:?} and VAD from {:?}", asr_source, vad_source);
+
+        let asr_bytes = fs::read(asr_source)
+            .map_err(|e| format!("Failed to read ASR model file at {:?}: {e}", asr_source))?;
+        let vad_bytes = fs::read(vad_source)
+            .map_err(|e| format!("Failed to read VAD model file at {:?}: {e}", vad_source))?;
+
+        let asr_decompressed = decompress_if_gzipped(&asr_bytes)?;
+        let vad_decompressed = decompress_if_gzipped(&vad_bytes)?;
+
+        // Validate ASR header
+        if asr_decompressed.len() < 4 {
+            return Err("ASR model file is too short to be valid".to_string());
+        }
+        let magic = &asr_decompressed[0..4];
+        if magic != b"TZF1" && magic != b"TZF2" && magic != b"TZF3" && magic != b"TZF4" {
+            return Err(format!(
+                "Invalid ASR model file header: expected TZF1-TZF4, found {:?}",
+                String::from_utf8_lossy(magic)
+            ));
+        }
+
+        // Validate VAD ONNX model
+        tinyasr::Vad::from_onnx(&vad_decompressed)
+            .map_err(|e| format!("Silero VAD ONNX validation failed: {e}"))?;
+
+        // Test loading both to ensure complete compatibility
+        let test_models = tinyasr::Models::load(tinyasr::Files {
+            asr: &asr_decompressed,
+            vad: &vad_decompressed,
+        }).map_err(|e| format!("Failed to initialize TinyASR models: {e}"))?;
+
+        let langs: Vec<String> = test_models.langs().into_iter().map(|s| s.to_string()).collect();
+
+        // Write uncompressed verified models to local application directory
+        let dest_asr = self.models_dir.join("en-fa.tzf");
+        let dest_vad = self.models_dir.join("silero_vad.onnx");
+
+        let mut f_asr = File::create(&dest_asr)
+            .map_err(|e| format!("Failed to create destination ASR file at {:?}: {e}", dest_asr))?;
+        f_asr.write_all(&asr_decompressed)
+            .map_err(|e| format!("Failed to write ASR model: {e}"))?;
+
+        let mut f_vad = File::create(&dest_vad)
+            .map_err(|e| format!("Failed to create destination VAD file at {:?}: {e}", dest_vad))?;
+        f_vad.write_all(&vad_decompressed)
+            .map_err(|e| format!("Failed to write VAD model: {e}"))?;
+
+        let mut info = self.info.write();
+        info.is_installed = true;
+        info.asr_filename = Some("en-fa.tzf".to_string());
+        info.vad_filename = Some("silero_vad.onnx".to_string());
+        info.asr_size_bytes = asr_decompressed.len() as u64;
+        info.vad_size_bytes = vad_decompressed.len() as u64;
+        info.languages = langs;
+        info.version = tinyasr::version();
+        info.status = "ready".to_string();
+        info.error_message = None;
+
+        log::info!("Model files successfully imported and validated.");
+        Ok(info.clone())
+    }
+
+    pub fn load_models(&self, threads: usize) -> Result<(), String> {
+        let asr_path = self.models_dir.join("en-fa.tzf");
+        let vad_path = self.models_dir.join("silero_vad.onnx");
+
+        if !asr_path.exists() || !vad_path.exists() {
+            return Err("Model files are not installed. Please import en-fa.tzf and silero_vad.onnx first.".to_string());
+        }
+
+        let asr_bytes = fs::read(&asr_path)
+            .map_err(|e| format!("Failed to read ASR model from {:?}: {e}", asr_path))?;
+        let vad_bytes = fs::read(&vad_path)
+            .map_err(|e| format!("Failed to read VAD model from {:?}: {e}", vad_path))?;
+
+        let mut models = tinyasr::Models::load(tinyasr::Files {
+            asr: &asr_bytes,
+            vad: &vad_bytes,
+        }).map_err(|e| format!("Failed to load TinyASR models: {e}"))?;
+
+        if threads > 1 {
+            models.set_threads(threads);
+        }
+
+        let langs: Vec<String> = models.langs().into_iter().map(|s| s.to_string()).collect();
+
+        *self.loaded_models.write() = Some(Arc::new(models));
+
+        let mut info = self.info.write();
+        info.is_loaded = true;
+        info.languages = langs;
+        info.status = "loaded".to_string();
+        info.error_message = None;
+
+        log::info!("TinyASR models successfully loaded with {} threads.", threads);
+        Ok(())
+    }
+
+    pub fn unload_models(&self) {
+        *self.loaded_models.write() = None;
+        let mut info = self.info.write();
+        info.is_loaded = false;
+        info.status = if info.is_installed { "ready".to_string() } else { "not_installed".to_string() };
+        log::info!("TinyASR models unloaded.");
+    }
+}
