@@ -236,34 +236,14 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
               </span>
             </div>
 
-            {/* Live Streaming Active Card (if recording and speaking) */}
+            {/* Live Streaming Active Status Indicator (compact pill when speaking) */}
             {isRecording && hasUncommitted && (
-              <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/40 via-navy-900/60 to-navy-950/40 border border-cyan-500/30 shadow-lg shadow-cyan-500/10 transition-all animate-glow-pulse mb-4">
-                <div className="flex items-center space-x-2 space-x-reverse mb-2">
-                  <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                  <span className="text-[10px] font-mono tracking-wider uppercase text-cyan-400 font-semibold" dir="ltr">
-                    ● {t('liveStreamPill')}
-                  </span>
-                </div>
-                <div className="text-lg leading-relaxed text-cyan-200 font-medium flex flex-wrap gap-x-1.5 gap-y-1 items-baseline">
-                  {openWords.map((word, idx) => (
-                    <WordSpan
-                      key={`hero-open-${idx}-${word.start}`}
-                      word={word}
-                      type="open"
-                      showTimestamp={showTimestamps}
-                    />
-                  ))}
-                  {tailWords.map((word, idx) => (
-                    <WordSpan
-                      key={`hero-tail-${idx}-${word.start}`}
-                      word={word}
-                      type="tail"
-                      showTimestamp={showTimestamps}
-                    />
-                  ))}
-                  <span className="inline-block w-2 h-5 bg-cyan-400 ml-1 rounded-sm animate-cursor-blink shadow-sm shadow-cyan-400" />
-                </div>
+              <div className="flex items-center space-x-2.5 space-x-reverse px-3.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 text-xs shadow-sm mb-2 w-fit animate-glow-pulse">
+                <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                <span className="font-medium text-[11px]">
+                  {t('liveStreamPill')}: {t('listening')}
+                </span>
+                <span className="inline-block w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
               </div>
             )}
 
@@ -272,7 +252,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
               {/* 1. Finalized Committed words */}
               {committedWords.map((word, idx) => (
                 <WordSpan
-                  key={`commit-${idx}-${word.start}`}
+                  key={`commit-${idx}-${word.start}-${word.text}`}
                   word={word}
                   type="commit"
                   showTimestamp={showTimestamps}
@@ -282,7 +262,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
               {/* 2. Re-decoded Open words */}
               {openWords.map((word, idx) => (
                 <WordSpan
-                  key={`open-${idx}-${word.start}`}
+                  key={`open-${idx}-${word.start}-${word.text}`}
                   word={word}
                   type="open"
                   showTimestamp={showTimestamps}
@@ -292,7 +272,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
               {/* 3. Streaming Tail words */}
               {tailWords.map((word, idx) => (
                 <WordSpan
-                  key={`tail-${idx}-${word.start}`}
+                  key={`tail-${idx}-${word.start}-${word.text}`}
                   word={word}
                   type="tail"
                   showTimestamp={showTimestamps}

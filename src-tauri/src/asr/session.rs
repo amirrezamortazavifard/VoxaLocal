@@ -54,6 +54,7 @@ pub fn spawn_session_worker(
             });
 
             let mut is_cancelled = false;
+            let mut last_committed_end: f32 = -1.0;
 
             while let Ok(cmd) = command_receiver.recv() {
                 match cmd {
@@ -65,7 +66,7 @@ pub fn spawn_session_worker(
                             continue;
                         }
                         let events = session.push(&pcm_chunk);
-                        dispatch_events(&app, &session_id, events);
+                        dispatch_events(&app, &session_id, events, &mut last_committed_end);
                     }
                     SessionCommand::Finish => {
                         log::info!("[ASR Worker {session_id}] Finish command received, finalizing remaining audio");
@@ -76,7 +77,7 @@ pub fn spawn_session_worker(
                         });
 
                         let events = session.finish();
-                        dispatch_events(&app, &session_id, events);
+                        dispatch_events(&app, &session_id, events, &mut last_committed_end);
                         break;
                     }
                     SessionCommand::Cancel => {
@@ -98,7 +99,12 @@ pub fn spawn_session_worker(
         .expect("Failed to spawn ASR worker thread")
 }
 
-fn dispatch_events(app: &AppHandle, session_id: &str, events: Vec<tinyasr::Event>) {
+fn dispatch_events(
+    app: &AppHandle,
+    session_id: &str,
+    events: Vec<tinyasr::Event>,
+    last_committed_end: &mut f32,
+) {
     for event in events {
         match event {
             tinyasr::Event::Partial { open, tail } => {
@@ -109,10 +115,27 @@ fn dispatch_events(app: &AppHandle, session_id: &str, events: Vec<tinyasr::Event
                 });
             }
             tinyasr::Event::Commit(words) => {
-                let _ = app.emit("asr://commit", CommitEventPayload {
-                    session_id: session_id.to_string(),
-                    words: words.into_iter().map(WordItem::from).collect(),
-                });
+                let valid_words: Vec<WordItem> = words
+                    .into_iter()
+                    .map(WordItem::from)
+                    .filter(|w| w.start >= *last_committed_end - 0.05)
+                    .collect();
+
+                if !valid_words.is_empty() {
+                    if let Some(last) = valid_words.last() {
+                        *last_committed_end = last.end;
+                    }
+                    log::info!(
+                        "[ASR Worker {session_id}] Emitting Commit: {} words (range: {:.2}s - {:.2}s)",
+                        valid_words.len(),
+                        valid_words.first().map(|w| w.start).unwrap_or(0.0),
+                        *last_committed_end,
+                    );
+                    let _ = app.emit("asr://commit", CommitEventPayload {
+                        session_id: session_id.to_string(),
+                        words: valid_words,
+                    });
+                }
             }
             tinyasr::Event::Language(lang) => {
                 let _ = app.emit("asr://language", LanguageEventPayload {
