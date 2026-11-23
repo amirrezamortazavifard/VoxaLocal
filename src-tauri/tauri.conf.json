@@ -14,10 +14,12 @@
       {
         "label": "main",
         "title": "VoxaLocal — Offline Persian & English Speech Recognition Studio",
-        "width": 1200,
-        "height": 840,
-        "minWidth": 900,
-        "minHeight": 650,
+        "width": 780,
+        "height": 560,
+        "minWidth": 620,
+        "minHeight": 460,
+        "maxWidth": 960,
+        "maxHeight": 700,
         "center": true,
         "decorations": true
       },

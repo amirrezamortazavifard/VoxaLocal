@@ -62,14 +62,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   };
 
   return (
-    <aside className="w-64 bg-[#141518] border-e border-white/[0.08] flex flex-col justify-between h-full select-none text-slate-300 font-sans shrink-0">
+    <aside className="w-56 bg-[#141518] border-e border-white/[0.08] flex flex-col justify-between h-full select-none text-slate-300 font-sans shrink-0">
       {/* Top Branding & Logo matching Image 2 */}
-      <div>
-        <div className="p-5 flex items-center space-x-3 space-x-reverse border-b border-white/[0.06]">
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="p-4 flex items-center space-x-3 space-x-reverse border-b border-white/[0.06] shrink-0">
           {/* Glowing circular wave logo */}
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-500 p-[2px] shadow-lg shadow-cyan-500/20 shrink-0">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-500 p-[2px] shadow-lg shadow-cyan-500/20 shrink-0">
             <div className="w-full h-full bg-[#141518] rounded-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 12h2M6 8v8M10 5v14M14 9v6M18 11v2M22 12h-2" />
               </svg>
             </div>
@@ -81,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
         </div>
 
         {/* Navigation Sections */}
-        <nav className="p-3 space-y-1 text-xs">
+        <nav className="p-2.5 space-y-1 text-xs flex-1 overflow-y-auto">
           {/* 1. Accueil / Home */}
           <button
             onClick={() => setActiveTab('home')}

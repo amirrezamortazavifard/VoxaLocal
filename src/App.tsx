@@ -140,7 +140,7 @@ const MainApp: React.FC = () => {
 
         {/* Tab 9: File Transcription */}
         {activeTab === 'file_transcribe' && (
-          <div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-5xl mx-auto w-full">
             <FileTranscription
               onSaveToHistory={handleSaveToHistory}
               isModelLoaded={!!modelInfo?.isLoaded}
@@ -150,7 +150,7 @@ const MainApp: React.FC = () => {
 
         {/* Tab 10: Full History */}
         {activeTab === 'full_history' && (
-          <div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-5xl mx-auto w-full">
             <HistoryView />
           </div>
         )}

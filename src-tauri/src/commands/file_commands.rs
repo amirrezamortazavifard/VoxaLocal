@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use symphonia::core::audio::{AudioBufferRef, Signal};
-use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL, CODEC_TYPE_OPUS};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
@@ -64,7 +64,7 @@ pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
 
     let mut hint = Hint::new();
     if let Some(ext) = file_path.extension().and_then(|s| s.to_str()) {
-        hint.with_extension(ext);
+        hint.with_extension(&ext.to_lowercase());
     }
 
     let meta_opts: MetadataOptions = Default::default();
@@ -86,12 +86,64 @@ pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
     let sample_rate = track
         .codec_params
         .sample_rate
-        .ok_or_else(|| "Audio file does not specify sample rate".to_string())?;
+        .unwrap_or(48000);
     let channels = track
         .codec_params
         .channels
         .map(|c| c.count())
         .unwrap_or(1);
+
+    // Native Opus decoder path for OGG/Opus voice messages (Telegram, WhatsApp, etc.)
+    if track.codec_params.codec == CODEC_TYPE_OPUS {
+        log::info!("Decoding Ogg/Opus audio track using native Opus decoder (channels: {channels})");
+        let mut opus_decoder = opus_decoder::OpusDecoder::new(48000, channels)
+            .map_err(|e| format!("Failed to create Opus decoder: {e:?}"))?;
+        let mut mono_samples = Vec::new();
+
+        loop {
+            let packet = match format.next_packet() {
+                Ok(packet) => packet,
+                Err(SymphoniaError::IoError(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+                Err(SymphoniaError::ResetRequired) => continue,
+                Err(e) => {
+                    log::warn!("Opus audio stream end/error: {e}");
+                    break;
+                }
+            };
+
+            if packet.track_id() != track_id {
+                continue;
+            }
+
+            // Skip OGG Opus identification and comment headers (RFC 7845)
+            if packet.data.starts_with(b"OpusHead") || packet.data.starts_with(b"OpusTags") {
+                continue;
+            }
+
+            // Max Opus frame is 120ms (5760 samples per channel at 48kHz)
+            let mut pcm_buf = vec![0.0f32; 5760 * channels];
+            match opus_decoder.decode_float(&packet.data, &mut pcm_buf, false) {
+                Ok(samples_per_channel) => {
+                    let total_samples = samples_per_channel * channels;
+                    let frame = &pcm_buf[..total_samples];
+                    if channels == 1 {
+                        mono_samples.extend_from_slice(frame);
+                    } else {
+                        for chunk in frame.chunks_exact(channels) {
+                            let sum: f32 = chunk.iter().sum();
+                            mono_samples.push(sum / channels as f32);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Opus packet decode error: {e:?}");
+                }
+            }
+        }
+
+        log::info!("Successfully decoded {} Opus audio samples at 48kHz", mono_samples.len());
+        return Ok((mono_samples, 48000));
+    }
 
     let dec_opts: DecoderOptions = Default::default();
     let mut decoder = symphonia::default::get_codecs()
