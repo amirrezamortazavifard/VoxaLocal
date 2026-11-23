@@ -63,11 +63,9 @@ impl ShortcutManager {
 
     pub fn trigger_start(&self, app: &AppHandle) {
         let current_state = self.state_machine.read().state();
-        if current_state == PttState::Idle
-            || current_state == PttState::Result
-            || current_state == PttState::Cancelled
-            || current_state == PttState::Error
-        {
+        if current_state == PttState::Recording || current_state == PttState::Finalizing {
+            self.stop_quick_dictation(app);
+        } else {
             self.state_machine.write().on_press();
             self.start_quick_dictation(app);
         }
@@ -78,19 +76,14 @@ impl ShortcutManager {
     }
 
     pub fn update_settings(&self, app: &AppHandle, new_settings: QuickDictationSettings) -> Result<(), String> {
-        let old_shortcut = self.settings.read().shortcut.clone();
-        let old_enabled = self.settings.read().enabled;
-
         {
             let mut s = self.settings.write();
             *s = new_settings.clone();
             self.state_machine.write().set_mode(new_settings.mode);
         }
 
-        // Re-register shortcut if key changed or enabled status changed
-        if old_shortcut != new_settings.shortcut || old_enabled != new_settings.enabled {
-            self.register_shortcut(app, &new_settings.shortcut, new_settings.enabled)?;
-        }
+        // Always register the shortcut with the OS
+        self.register_shortcut(app, &new_settings.shortcut, new_settings.enabled)?;
 
         Ok(())
     }
@@ -129,30 +122,19 @@ impl ShortcutManager {
         match state {
             ShortcutState::Pressed => {
                 log::info!("Global shortcut PRESSED");
-                let mode = self.settings.read().mode;
                 let current_state = self.state_machine.read().state();
 
-                if mode == PttMode::Toggle && (current_state == PttState::Recording || current_state == PttState::Finalizing) {
-                    // In Toggle mode, pressing while recording triggers stop
+                if current_state == PttState::Recording || current_state == PttState::Finalizing {
+                    // In Toggle workflow, pressing shortcut while recording stops session and reviews
                     self.stop_quick_dictation(app);
-                } else if current_state == PttState::Idle
-                    || current_state == PttState::Result
-                    || current_state == PttState::Cancelled
-                    || current_state == PttState::Error
-                {
+                } else {
+                    // In any other state, pressing shortcut opens modal and begins listening
                     self.state_machine.write().on_press();
                     self.start_quick_dictation(app);
                 }
             }
             ShortcutState::Released => {
-                log::info!("Global shortcut RELEASED");
-                let mode = self.settings.read().mode;
-                if mode == PttMode::PushToTalk {
-                    let should_stop = self.state_machine.write().on_release();
-                    if should_stop {
-                        self.stop_quick_dictation(app);
-                    }
-                }
+                // Key release does not affect Toggle workflow
             }
         }
     }

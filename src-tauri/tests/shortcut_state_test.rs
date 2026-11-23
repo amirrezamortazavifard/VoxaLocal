@@ -60,6 +60,18 @@ fn test_ptt_released_during_startup_race() {
 }
 
 #[test]
+fn test_shortcut_parsing() {
+    use tauri_plugin_global_shortcut::Shortcut;
+    let s1 = "Ctrl+Shift+B".parse::<Shortcut>();
+    println!("Ctrl+Shift+B parse result: {:?}", s1);
+    assert!(s1.is_ok(), "Failed to parse Ctrl+Shift+B: {:?}", s1.err());
+
+    let s2 = "Ctrl+Shift+Space".parse::<Shortcut>();
+    println!("Ctrl+Shift+Space parse result: {:?}", s2);
+    assert!(s2.is_ok(), "Failed to parse Ctrl+Shift+Space: {:?}", s2.err());
+}
+
+#[test]
 fn test_toggle_mode_lifecycle() {
     let mut sm = PttStateMachine::new(PttMode::Toggle);
     assert_eq!(sm.state(), PttState::Idle);
