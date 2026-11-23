@@ -6,14 +6,16 @@ impl OverlayManager {
     /// Shows the floating quick dictation overlay window.
     /// If `no_activate` is true (e.g. during Push-to-Talk recording), the window is displayed
     /// without stealing input focus from the active foreground application.
-    pub fn show(app: &AppHandle, _no_activate: bool) -> Result<(), String> {
+    pub fn show(app: &AppHandle, no_activate: bool) -> Result<(), String> {
         let window = app
             .get_webview_window("quick-dictation")
             .ok_or_else(|| "Quick dictation window not found".to_string())?;
 
         // Ensure window is always on top and visible
         let _ = window.set_always_on_top(true);
-        window.show().map_err(|e| format!("Failed to show overlay: {e}"))?;
+        window
+            .show()
+            .map_err(|e| format!("Failed to show overlay: {e}"))?;
         let _ = window.unminimize();
         let _ = window.set_focus();
 
@@ -27,7 +29,9 @@ impl OverlayManager {
             .get_webview_window("quick-dictation")
             .ok_or_else(|| "Quick dictation window not found".to_string())?;
 
-        window.hide().map_err(|e| format!("Failed to hide overlay: {e}"))?;
+        window
+            .hide()
+            .map_err(|e| format!("Failed to hide overlay: {e}"))?;
         log::info!("Overlay window hidden.");
         Ok(())
     }
