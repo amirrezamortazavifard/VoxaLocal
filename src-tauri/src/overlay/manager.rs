@@ -6,46 +6,18 @@ impl OverlayManager {
     /// Shows the floating quick dictation overlay window.
     /// If `no_activate` is true (e.g. during Push-to-Talk recording), the window is displayed
     /// without stealing input focus from the active foreground application.
-    pub fn show(app: &AppHandle, no_activate: bool) -> Result<(), String> {
+    pub fn show(app: &AppHandle, _no_activate: bool) -> Result<(), String> {
         let window = app
             .get_webview_window("quick-dictation")
             .ok_or_else(|| "Quick dictation window not found".to_string())?;
 
-        // Ensure window is always on top
+        // Ensure window is always on top and visible
         let _ = window.set_always_on_top(true);
-
-        #[cfg(windows)]
-        {
-            if no_activate {
-                use windows_sys::Win32::UI::WindowsAndMessaging::{
-                    SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-                    SWP_SHOWWINDOW, SW_SHOWNOACTIVATE,
-                };
-
-                if let Ok(hwnd) = window.hwnd() {
-                    unsafe {
-                        let win_hwnd = hwnd.0 as windows_sys::Win32::Foundation::HWND;
-                        ShowWindow(win_hwnd, SW_SHOWNOACTIVATE);
-                        SetWindowPos(
-                            win_hwnd,
-                            HWND_TOPMOST,
-                            0,
-                            0,
-                            0,
-                            0,
-                            SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
-                        );
-                    }
-                    log::info!("Overlay window shown with SW_SHOWNOACTIVATE (focus preserved).");
-                    return Ok(());
-                }
-            }
-        }
-
         window.show().map_err(|e| format!("Failed to show overlay: {e}"))?;
-        if !no_activate {
-            let _ = window.set_focus();
-        }
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+
+        log::info!("Overlay window shown and focused.");
         Ok(())
     }
 

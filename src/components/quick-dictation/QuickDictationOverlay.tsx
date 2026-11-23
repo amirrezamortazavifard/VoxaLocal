@@ -64,11 +64,23 @@ export const QuickDictationOverlay: React.FC = () => {
     committedWordsRef.current = committedWords;
   }, [committedWords]);
 
-  // Load Quick Dictation settings
+  // Load Quick Dictation settings and ensure backend recording session is active
   useEffect(() => {
     invoke<QuickDictationSettings>('get_quick_dictation_settings')
       .then((s) => setSettings(s))
       .catch((err) => console.error('Failed to load quick dictation settings:', err));
+
+    invoke<'idle' | 'starting' | 'recording' | 'finalizing' | 'result' | 'cancelled' | 'error'>(
+      'get_quick_dictation_state'
+    )
+      .then((st) => {
+        if (st === 'recording') {
+          setOverlayState('recording');
+        } else if (st === 'idle' || st === 'cancelled' || st === 'error') {
+          invoke('start_quick_dictation_session').catch(console.error);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   // Keyboard shortcut listener (Escape to cancel)

@@ -62,17 +62,19 @@ impl ShortcutManager {
     }
 
     pub fn trigger_start(&self, app: &AppHandle) {
-        let should_start = self.state_machine.write().on_press();
-        if should_start {
+        let current_state = self.state_machine.read().state();
+        if current_state == PttState::Idle
+            || current_state == PttState::Result
+            || current_state == PttState::Cancelled
+            || current_state == PttState::Error
+        {
+            self.state_machine.write().on_press();
             self.start_quick_dictation(app);
         }
     }
 
     pub fn trigger_stop(&self, app: &AppHandle) {
-        let should_stop = self.state_machine.write().on_release();
-        if should_stop {
-            self.stop_quick_dictation(app);
-        }
+        self.stop_quick_dictation(app);
     }
 
     pub fn update_settings(&self, app: &AppHandle, new_settings: QuickDictationSettings) -> Result<(), String> {
@@ -127,22 +129,29 @@ impl ShortcutManager {
         match state {
             ShortcutState::Pressed => {
                 log::info!("Global shortcut PRESSED");
-                let should_start = self.state_machine.write().on_press();
-                if should_start {
-                    self.start_quick_dictation(app);
-                } else if self.settings.read().mode == PttMode::Toggle {
+                let mode = self.settings.read().mode;
+                let current_state = self.state_machine.read().state();
+
+                if mode == PttMode::Toggle && (current_state == PttState::Recording || current_state == PttState::Finalizing) {
                     // In Toggle mode, pressing while recording triggers stop
-                    let is_recording = self.state_machine.read().state() == PttState::Finalizing;
-                    if is_recording {
-                        self.stop_quick_dictation(app);
-                    }
+                    self.stop_quick_dictation(app);
+                } else if current_state == PttState::Idle
+                    || current_state == PttState::Result
+                    || current_state == PttState::Cancelled
+                    || current_state == PttState::Error
+                {
+                    self.state_machine.write().on_press();
+                    self.start_quick_dictation(app);
                 }
             }
             ShortcutState::Released => {
                 log::info!("Global shortcut RELEASED");
-                let should_stop = self.state_machine.write().on_release();
-                if should_stop {
-                    self.stop_quick_dictation(app);
+                let mode = self.settings.read().mode;
+                if mode == PttMode::PushToTalk {
+                    let should_stop = self.state_machine.write().on_release();
+                    if should_stop {
+                        self.stop_quick_dictation(app);
+                    }
                 }
             }
         }

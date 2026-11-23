@@ -164,6 +164,13 @@ const MainApp: React.FC = () => {
 export const App: React.FC = () => {
   const isOverlay = window.location.search.includes('window=quick-dictation');
 
+  useEffect(() => {
+    if (isOverlay) {
+      document.body.style.backgroundColor = 'transparent';
+      document.documentElement.style.backgroundColor = 'transparent';
+    }
+  }, [isOverlay]);
+
   return (
     <LanguageProvider>
       {isOverlay ? <QuickDictationOverlay /> : <MainApp />}
