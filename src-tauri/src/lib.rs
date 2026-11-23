@@ -77,6 +77,7 @@ pub fn run() {
                 let model_manager = Arc::new(ModelManager::new(&app_data_dir));
                 let asr_engine = Arc::new(AsrEngine::new(Arc::clone(&model_manager)));
                 let audio_capture = Arc::new(AudioCapture::new());
+                let file_transcription_manager = Arc::new(crate::commands::file_commands::FileTranscriptionManager::default());
 
                 // Setup system tray
                 if let Err(e) = TrayManager::setup(&app.handle()) {
@@ -87,6 +88,7 @@ pub fn run() {
                 app.manage(model_manager);
                 app.manage(Arc::clone(&asr_engine));
                 app.manage(audio_capture);
+                app.manage(file_transcription_manager);
                 app.manage(history_repo);
                 app.manage(settings_repo);
                 app.manage(shortcut_manager);
@@ -130,6 +132,9 @@ pub fn run() {
             get_recognition_settings,
             update_recognition_settings,
             transcribe_audio_file,
+            get_audio_file_waveform,
+            start_file_transcription,
+            cancel_file_transcription,
             get_history,
             save_transcript,
             delete_history_item,

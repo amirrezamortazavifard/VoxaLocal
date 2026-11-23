@@ -165,6 +165,11 @@ export const translations = {
     startCol: 'شروع (ثانیه)',
     endCol: 'پایان (ثانیه)',
     durationCol: 'مدت',
+    waveformProgress: 'پیشرفت تحلیل صوت و رونویسی',
+    liveWordsStream: 'شناسایی و استخراج لحظه‌ای کلمات فایل',
+    cancelTranscribe: 'لغو رونویسی',
+    audioDuration: 'مدت فایل',
+    transcribedWordsCount: 'کلمات استخراج‌شده',
 
     // History
     historyTitle: 'تاریخچه محلی رونویسی‌ها (SQLite)',
@@ -383,6 +388,11 @@ export const translations = {
     startCol: 'Start (sec)',
     endCol: 'End (sec)',
     durationCol: 'Duration',
+    waveformProgress: 'Audio Analysis & Transcription Progress',
+    liveWordsStream: 'Live Extracted Words',
+    cancelTranscribe: 'Cancel Transcription',
+    audioDuration: 'Audio Duration',
+    transcribedWordsCount: 'Extracted Words',
 
     // History
     historyTitle: 'Local SQLite Transcription History',

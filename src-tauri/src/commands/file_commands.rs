@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use symphonia::core::audio::{AudioBufferRef, Signal};
@@ -9,6 +10,7 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
+use tauri::{AppHandle, Emitter};
 
 use crate::asr::events::WordItem;
 use crate::asr::model_manager::ModelManager;
@@ -22,6 +24,37 @@ pub struct FileTranscriptionResult {
     pub srt_content: String,
     pub duration_secs: f32,
     pub language: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileWaveformInfo {
+    pub duration_secs: f32,
+    pub peaks: Vec<f32>,
+    pub sample_rate: u32,
+    pub channels: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileTranscribeProgressPayload {
+    pub job_id: String,
+    pub progress: f32,
+    pub current_secs: f32,
+    pub total_secs: f32,
+    pub new_words: Vec<WordItem>,
+}
+
+pub struct FileTranscriptionManager {
+    pub cancel_flag: Arc<AtomicBool>,
+}
+
+impl Default for FileTranscriptionManager {
+    fn default() -> Self {
+        Self {
+            cancel_flag: Arc::new(AtomicBool::new(false)),
+        }
+    }
 }
 
 pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
@@ -283,4 +316,213 @@ fn format_srt_timestamp(seconds: f32) -> String {
     let millis = total_millis % 1000;
 
     format!("{hours:02}:{minutes:02}:{secs:02},{millis:03}")
+}
+
+pub fn compute_waveform_peaks(samples: &[f32], num_bars: usize) -> Vec<f32> {
+    if samples.is_empty() || num_bars == 0 {
+        return vec![0.2; num_bars];
+    }
+
+    let chunk_size = (samples.len() as f32 / num_bars as f32).max(1.0) as usize;
+    let mut raw_peaks = Vec::with_capacity(num_bars);
+    let mut max_val: f32 = 0.001;
+
+    for i in 0..num_bars {
+        let start = i * chunk_size;
+        let end = ((i + 1) * chunk_size).min(samples.len());
+        if start >= samples.len() {
+            raw_peaks.push(0.0);
+            continue;
+        }
+
+        let slice = &samples[start..end];
+        let mut sum_sq = 0.0f32;
+        let mut peak_in_slice = 0.0f32;
+        for &s in slice {
+            let abs_s = s.abs();
+            if abs_s > peak_in_slice {
+                peak_in_slice = abs_s;
+            }
+            sum_sq += s * s;
+        }
+        let rms = (sum_sq / slice.len() as f32).sqrt();
+        let val = (rms * 0.75 + peak_in_slice * 0.25).min(1.0);
+        if val > max_val {
+            max_val = val;
+        }
+        raw_peaks.push(val);
+    }
+
+    // Normalize peaks between 0.15 and 1.0 (smooth height for Telegram-style bars)
+    raw_peaks
+        .into_iter()
+        .map(|p| {
+            let norm = (p / max_val).clamp(0.0, 1.0);
+            0.15 + norm * 0.85
+        })
+        .collect()
+}
+
+pub fn get_waveform_info(file_path: &Path, num_bars: usize) -> Result<FileWaveformInfo, String> {
+    let (samples, sample_rate) = decode_audio_file(file_path)?;
+    let duration = samples.len() as f32 / sample_rate as f32;
+    let peaks = compute_waveform_peaks(&samples, num_bars);
+
+    Ok(FileWaveformInfo {
+        duration_secs: duration,
+        peaks,
+        sample_rate,
+        channels: 1,
+    })
+}
+
+pub fn start_file_transcription_job(
+    app: AppHandle,
+    model_manager: Arc<ModelManager>,
+    file_manager: Arc<FileTranscriptionManager>,
+    file_path: &Path,
+    language_mode: &str,
+    beam_width: usize,
+) -> Result<String, String> {
+    let models = model_manager
+        .loaded_models()
+        .ok_or_else(|| "Models are not loaded. Please load models first.".to_string())?;
+
+    let file_path_buf = file_path.to_path_buf();
+    let lang = language_mode.to_string();
+    let job_id = uuid::Uuid::new_v4().to_string();
+    let thread_job_id = job_id.clone();
+
+    // Reset cancel flag
+    file_manager.cancel_flag.store(false, Ordering::SeqCst);
+    let cancel_flag = Arc::clone(&file_manager.cancel_flag);
+
+    std::thread::spawn(move || {
+        log::info!("[FileTranscribe {thread_job_id}] Decoding audio file {:?}", file_path_buf);
+
+        let (raw_samples, sample_rate) = match decode_audio_file(&file_path_buf) {
+            Ok(res) => res,
+            Err(e) => {
+                log::error!("[FileTranscribe {thread_job_id}] Audio decode error: {e}");
+                let _ = app.emit("file-transcribe://error", e);
+                return;
+            }
+        };
+
+        if raw_samples.is_empty() {
+            let _ = app.emit("file-transcribe://error", "Audio file is empty or could not be decoded".to_string());
+            return;
+        }
+
+        if cancel_flag.load(Ordering::SeqCst) {
+            let _ = app.emit("file-transcribe://cancelled", thread_job_id);
+            return;
+        }
+
+        // Resample to 16,000 Hz if needed
+        let pcm_16k = if sample_rate != 16000 {
+            match AudioResampler::new(sample_rate, 16000) {
+                Ok(mut resampler) => {
+                    match resampler.process(&raw_samples) {
+                        Ok(mut resampled) => {
+                            if let Ok(flushed) = resampler.flush() {
+                                resampled.extend(flushed);
+                            }
+                            resampled
+                        }
+                        Err(e) => {
+                            let _ = app.emit("file-transcribe://error", format!("Resampling failed: {e}"));
+                            return;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = app.emit("file-transcribe://error", format!("Resampler init failed: {e}"));
+                    return;
+                }
+            }
+        } else {
+            raw_samples
+        };
+
+        let langs_vec: Vec<&str> = match lang.as_str() {
+            "fa" => vec!["fa"],
+            "en" => vec!["en"],
+            _ => vec!["fa", "en"],
+        };
+
+        let mut transcription = tinyasr::Transcription::new(
+            &*models,
+            &pcm_16k,
+            &langs_vec,
+            beam_width.max(1),
+        );
+
+        let total_duration = transcription.duration();
+        let mut all_words = Vec::new();
+
+        // Emit initial progress at 0.0%
+        let _ = app.emit("file-transcribe://progress", FileTranscribeProgressPayload {
+            job_id: thread_job_id.clone(),
+            progress: 0.0,
+            current_secs: 0.0,
+            total_secs: total_duration,
+            new_words: Vec::new(),
+        });
+
+        while let Some(piece) = transcription.next() {
+            if cancel_flag.load(Ordering::SeqCst) {
+                log::info!("[FileTranscribe {thread_job_id}] Job cancelled by user");
+                let _ = app.emit("file-transcribe://cancelled", thread_job_id.clone());
+                return;
+            }
+
+            let current_pos = transcription.position();
+            let progress = if total_duration > 0.0 {
+                (current_pos / total_duration).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+
+            let new_words: Vec<WordItem> = piece.into_iter().map(WordItem::from).collect();
+            all_words.extend(new_words.clone());
+
+            let _ = app.emit("file-transcribe://progress", FileTranscribeProgressPayload {
+                job_id: thread_job_id.clone(),
+                progress,
+                current_secs: current_pos,
+                total_secs: total_duration,
+                new_words,
+            });
+        }
+
+        // Build plain text
+        let mut full_text = String::new();
+        for (i, w) in all_words.iter().enumerate() {
+            if i > 0 && !w.join {
+                full_text.push(' ');
+            }
+            full_text.push_str(&w.text);
+        }
+
+        let srt_content = generate_srt(&all_words);
+
+        log::info!("[FileTranscribe {thread_job_id}] Transcription completed successfully. Emitting done.");
+        let _ = app.emit("file-transcribe://done", FileTranscriptionResult {
+            text: full_text,
+            words: all_words,
+            srt_content,
+            duration_secs: total_duration,
+            language: lang,
+        });
+    });
+
+    Ok(job_id)
+}
+
+pub fn cancel_file_transcription_job(
+    file_manager: Arc<FileTranscriptionManager>,
+) -> Result<(), String> {
+    file_manager.cancel_flag.store(true, Ordering::SeqCst);
+    Ok(())
 }

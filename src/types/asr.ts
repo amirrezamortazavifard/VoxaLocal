@@ -111,6 +111,21 @@ export interface TranscriptRecord {
   createdAt: string;
 }
 
+export interface FileWaveformInfo {
+  durationSecs: number;
+  peaks: number[];
+  sampleRate: number;
+  channels: number;
+}
+
+export interface FileTranscribeProgressPayload {
+  jobId: string;
+  progress: number;
+  currentSecs: number;
+  totalSecs: number;
+  newWords: WordItem[];
+}
+
 export interface FileTranscriptionResult {
   text: string;
   words: WordItem[];
