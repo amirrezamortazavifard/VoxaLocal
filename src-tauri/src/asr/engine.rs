@@ -29,7 +29,7 @@ impl Default for RecognitionSettings {
         let logical_cpus = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
-        let default_threads = (logical_cpus / 2).clamp(1, 4);
+        let default_threads = logical_cpus.clamp(1, 4);
 
         Self {
             language_mode: "fa".to_string(),

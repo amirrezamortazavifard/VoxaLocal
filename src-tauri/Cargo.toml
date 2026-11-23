@@ -40,3 +40,16 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_Memory",
     "Win32_System_DataExchange",
 ] }
+
+# Ensure tinyasr and numerical crates run at full release speed even during `npm run tauri dev`
+[profile.dev.package.tinyasr]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"

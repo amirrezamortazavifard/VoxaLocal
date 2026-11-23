@@ -19,7 +19,7 @@ export function useAsr() {
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [settings, setSettings] = useState<RecognitionSettings>({
     languageMode: 'fa',
-    beamWidth: 4,
+    beamWidth: 1,
     threads: 4,
     autoThreads: true,
   });
