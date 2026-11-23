@@ -1,14 +1,30 @@
-import React, { useState } from 'react';
-import { Copy, Trash2, Download, Save, Check, Clock, Sparkles, Radio } from 'lucide-react';
-import { WordItem } from '../types/asr';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Copy,
+  Trash2,
+  Download,
+  Save,
+  Check,
+  Clock,
+  Sparkles,
+  Radio,
+  Edit3,
+  ArrowDown,
+  RotateCcw,
+} from 'lucide-react';
+import { TrackedWordItem, WordItem } from '../types/asr';
 import { formatPersianTranscript } from '../utils/persianTypography';
-import { exportAsFile, exportWordsAsJson, generateSrtFromWords, wordsToPlainString } from '../utils/exportFormats';
+import {
+  exportAsFile,
+  exportWordsAsJson,
+  generateSrtFromWords,
+  wordsToPlainString,
+} from '../utils/exportFormats';
 import { useLanguage } from '../i18n/LanguageContext';
 
 interface TranscriptViewProps {
   committedWords: WordItem[];
-  openWords: WordItem[];
-  tailWords: WordItem[];
+  trackedProvisionalWords: TrackedWordItem[];
   allWords: WordItem[];
   status: string;
   activeLanguage: string;
@@ -19,8 +35,7 @@ interface TranscriptViewProps {
 
 export const TranscriptView: React.FC<TranscriptViewProps> = ({
   committedWords,
-  openWords,
-  tailWords,
+  trackedProvisionalWords,
   allWords,
   status,
   activeLanguage,
@@ -35,17 +50,58 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const rawText = wordsToPlainString(allWords);
-  const displayText = usePersianTypography && (activeLanguage === 'fa' || language === 'fa')
-    ? formatPersianTranscript(rawText)
-    : rawText;
+  // Editable transcript mode
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedText, setEditedText] = useState<string | null>(null);
+
+  // Auto-scroll control
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+
+  const rawAsrText = wordsToPlainString(allWords);
+  const formattedRawText =
+    usePersianTypography && (activeLanguage === 'fa' || language === 'fa')
+      ? formatPersianTranscript(rawAsrText)
+      : rawAsrText;
+
+  // The text currently displayed / copied / exported
+  const currentText = editedText !== null ? editedText : formattedRawText;
+  const isModified = editedText !== null && editedText !== formattedRawText;
 
   const isRecording = status === 'recording';
-  const hasUncommitted = openWords.length > 0 || tailWords.length > 0;
+  const hasUncommitted = trackedProvisionalWords.length > 0;
+  const hasCorrectedWords = trackedProvisionalWords.some(
+    (w) => w.visualState === 'provisional-corrected'
+  );
+
+  // Auto-scroll to bottom on new words unless user scrolled up
+  useEffect(() => {
+    if (!isUserScrolledUp && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [committedWords.length, trackedProvisionalWords.length, isUserScrolledUp]);
+
+  // Handle scroll events to detect user manual scrolling
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 45;
+    setIsUserScrolledUp(!isAtBottom);
+  };
+
+  const scrollToBottom = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+      setIsUserScrolledUp(false);
+    }
+  };
 
   const handleCopy = async () => {
-    if (!displayText) return;
-    await navigator.clipboard.writeText(displayText);
+    if (!currentText) return;
+    await navigator.clipboard.writeText(currentText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -55,9 +111,11 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
     setIsSaving(true);
     try {
       const dateStr = new Date().toLocaleTimeString(language === 'fa' ? 'fa-IR' : 'en-US');
-      const title = `${t('appTitle')} - ${dateStr} (${allWords.length} ${t('wordCount')})`;
+      const title = `${t('appTitle')} - ${dateStr} (${allWords.length} ${t('wordCount')})${
+        isModified ? ' [Edited]' : ''
+      }`;
       const srt = generateSrtFromWords(allWords);
-      await onSaveToHistory(title, displayText, srt);
+      await onSaveToHistory(title, currentText, srt);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -68,9 +126,9 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
   };
 
   const handleExportTxt = () => {
-    if (!displayText) return;
+    if (!currentText) return;
     const filename = `VoxLocal_Transcript_${Date.now()}.txt`;
-    exportAsFile(displayText, filename);
+    exportAsFile(currentText, filename);
   };
 
   const handleExportSrt = () => {
@@ -82,13 +140,23 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
 
   const handleExportJson = () => {
     if (!allWords.length) return;
-    const json = exportWordsAsJson('VoxLocal Transcript', allWords, activeLanguage, recordingDuration);
+    const json = exportWordsAsJson(
+      'VoxLocal Transcript',
+      allWords,
+      activeLanguage,
+      recordingDuration
+    );
     const filename = `VoxLocal_WordTimestamps_${Date.now()}.json`;
     exportAsFile(json, filename, 'application/json');
   };
 
+  const handleResetEdit = () => {
+    setEditedText(null);
+    setIsEditMode(false);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-navy-900/70 border border-slate-800/80 rounded-2xl backdrop-blur-md overflow-hidden shadow-2xl transition-all">
+    <div className="relative flex flex-col h-full bg-navy-900/70 border border-slate-800/80 rounded-2xl backdrop-blur-md overflow-hidden shadow-2xl transition-all">
       {/* Sub-header Controls Bar */}
       <div className="px-5 py-3 border-b border-slate-800/80 bg-navy-950/70 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center space-x-3 space-x-reverse">
@@ -102,20 +170,58 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
 
           {/* Word Count */}
           <div className="text-xs text-slate-400">
-            {t('wordCount')}: <span className="font-mono text-cyan-300 font-bold" dir="ltr">{allWords.length}</span>
+            {t('wordCount')}:{' '}
+            <span className="font-mono text-cyan-300 font-bold" dir="ltr">
+              {allWords.length}
+            </span>
           </div>
 
           {/* Re-decoding active badge */}
-          {openWords.length > 0 && (
-            <div className="flex items-center space-x-1.5 space-x-reverse px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 text-[11px] border border-cyan-500/30 animate-pulse shadow-sm shadow-cyan-500/20">
-              <Sparkles className="w-3 h-3 text-cyan-400" />
+          {hasCorrectedWords && (
+            <div className="flex items-center space-x-1.5 space-x-reverse px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-[11px] border border-amber-500/30 animate-pulse shadow-sm shadow-amber-500/20">
+              <Sparkles className="w-3 h-3 text-amber-400" />
               <span>{t('redecodingActive')}</span>
             </div>
+          )}
+
+          {isModified && (
+            <span className="text-[11px] px-2 py-0.5 rounded-md bg-cyan-950 border border-cyan-800/60 text-cyan-300 font-mono">
+              Edited
+            </span>
           )}
         </div>
 
         {/* Action Controls */}
         <div className="flex items-center space-x-2 space-x-reverse">
+          {/* Edit / View Toggle */}
+          <button
+            onClick={() => {
+              if (!isEditMode && editedText === null) {
+                setEditedText(formattedRawText);
+              }
+              setIsEditMode(!isEditMode);
+            }}
+            disabled={!allWords.length}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all flex items-center space-x-1 space-x-reverse disabled:opacity-40 ${
+              isEditMode
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
+                : 'bg-navy-950 text-slate-400 border-slate-800 hover:text-slate-200'
+            }`}
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>{isEditMode ? t('viewMode') : t('editTranscript')}</span>
+          </button>
+
+          {isModified && (
+            <button
+              onClick={handleResetEdit}
+              className="px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-rose-300 bg-navy-950 border border-slate-800 hover:border-rose-900/50 transition-colors"
+              title={t('resetToOriginal')}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {/* Persian Typography Toggle */}
           <button
             onClick={() => setUsePersianTypography(!usePersianTypography)}
@@ -196,7 +302,11 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
 
           {/* Clear Button */}
           <button
-            onClick={onClear}
+            onClick={() => {
+              setEditedText(null);
+              setIsEditMode(false);
+              onClear();
+            }}
             disabled={!allWords.length && !isRecording}
             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 transition-colors"
             title={t('clearText')}
@@ -207,7 +317,11 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 p-6 overflow-y-auto leading-loose text-base font-sans select-text scroll-smooth space-y-5">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 p-6 overflow-y-auto leading-loose text-base font-sans select-text scroll-smooth space-y-5"
+      >
         {allWords.length === 0 && !isRecording ? (
           <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center text-slate-500 py-16">
             <div className="w-16 h-16 rounded-3xl bg-navy-950 border border-slate-800/90 flex items-center justify-center mb-4 shadow-xl">
@@ -218,6 +332,28 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
               {t('studioReadyDesc')}
             </p>
           </div>
+        ) : isEditMode ? (
+          /* Editable Transcript Textarea */
+          <div className="h-full flex flex-col space-y-2">
+            <textarea
+              value={currentText}
+              onChange={(e) => setEditedText(e.target.value)}
+              className="w-full flex-1 min-h-[320px] bg-navy-950/80 border border-slate-800 rounded-xl p-4 text-slate-100 text-lg leading-relaxed focus:outline-none focus:border-cyan-500/50 resize-none font-sans"
+              dir={language === 'fa' || activeLanguage === 'fa' ? 'rtl' : 'ltr'}
+              placeholder={t('editPlaceholder')}
+            />
+            <div className="text-xs text-slate-500 flex justify-between items-center">
+              <span>{t('editHint')}</span>
+              {isModified && (
+                <button
+                  onClick={handleResetEdit}
+                  className="text-cyan-400 hover:underline"
+                >
+                  {t('resetToOriginal')}
+                </button>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             {/* Visual distinction legend */}
@@ -227,11 +363,11 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
                 <span>{t('legendFinal')}</span>
               </span>
               <span className="flex items-center space-x-1.5 space-x-reverse">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span>
+                <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50"></span>
                 <span>{t('legendRedecoded')}</span>
               </span>
               <span className="flex items-center space-x-1.5 space-x-reverse">
-                <span className="w-2 h-2 rounded-full bg-cyan-300/60 animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full bg-cyan-400/90 animate-pulse"></span>
                 <span>{t('legendProvisional')}</span>
               </span>
             </div>
@@ -248,33 +384,26 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
             )}
 
             {/* Complete Word Flow */}
-            <div className="text-lg leading-relaxed text-slate-100 flex flex-wrap gap-x-1.5 gap-y-1.5">
-              {/* 1. Finalized Committed words */}
+            <div
+              className="text-lg leading-relaxed text-slate-100 flex flex-wrap gap-x-1.5 gap-y-1.5"
+              dir={language === 'fa' || activeLanguage === 'fa' ? 'rtl' : 'ltr'}
+            >
+              {/* 1. Finalized Committed words (Immutable, stable text) */}
               {committedWords.map((word, idx) => (
                 <WordSpan
-                  key={`commit-${idx}-${word.start}-${word.text}`}
+                  key={`commit-${idx}-${Math.round(word.start * 100)}`}
                   word={word}
-                  type="commit"
+                  visualState="committed"
                   showTimestamp={showTimestamps}
                 />
               ))}
 
-              {/* 2. Re-decoded Open words */}
-              {openWords.map((word, idx) => (
+              {/* 2. Tracked Provisional words with Telegram-style revision diffing */}
+              {trackedProvisionalWords.map((word) => (
                 <WordSpan
-                  key={`open-${idx}-${word.start}-${word.text}`}
+                  key={word.id}
                   word={word}
-                  type="open"
-                  showTimestamp={showTimestamps}
-                />
-              ))}
-
-              {/* 3. Streaming Tail words */}
-              {tailWords.map((word, idx) => (
-                <WordSpan
-                  key={`tail-${idx}-${word.start}-${word.text}`}
-                  word={word}
-                  type="tail"
+                  visualState={word.visualState}
                   showTimestamp={showTimestamps}
                 />
               ))}
@@ -287,32 +416,49 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Floating Jump to Latest Button when user scrolled up */}
+      {isUserScrolledUp && isRecording && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-1.5 space-x-reverse px-3.5 py-1.5 rounded-full bg-cyan-500 text-slate-950 font-bold text-xs shadow-xl shadow-cyan-500/30 hover:bg-cyan-400 transition-all hover:scale-105 z-20"
+        >
+          <ArrowDown className="w-3.5 h-3.5" />
+          <span>{t('jumpToLatest')}</span>
+        </button>
+      )}
     </div>
   );
 };
 
 interface WordSpanProps {
   word: WordItem;
-  type: 'commit' | 'open' | 'tail';
+  visualState: 'committed' | 'provisional-new' | 'provisional-corrected' | 'provisional-stable';
   showTimestamp: boolean;
 }
 
-const WordSpan: React.FC<WordSpanProps> = ({ word, type, showTimestamp }) => {
-  const isEnglish = /^[a-zA-Z0-9.,!?'-]+$/.test(word.text);
+const WordSpan: React.FC<WordSpanProps> = ({ word, visualState, showTimestamp }) => {
+  // Distinguish English/Latin terms for bidi isolation
+  const isEnglishOrNumber = /^[a-zA-Z0-9.,!?'-]+$/.test(word.text);
 
   let styleClasses = 'text-slate-100';
-  if (type === 'open') {
-    styleClasses = 'text-cyan-300 bg-cyan-500/15 px-1.5 py-0.5 rounded-lg border border-cyan-400/40 font-semibold animate-redecode-flash shadow-sm shadow-cyan-500/20';
-  } else if (type === 'tail') {
-    styleClasses = 'text-cyan-400/90 font-medium italic animate-word-appear';
+  if (visualState === 'provisional-corrected') {
+    styleClasses =
+      'text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-lg border border-amber-400/40 font-semibold animate-word-corrected shadow-sm shadow-amber-500/20';
+  } else if (visualState === 'provisional-new') {
+    styleClasses = 'text-cyan-400 font-medium animate-word-appear';
+  } else if (visualState === 'provisional-stable') {
+    styleClasses = 'text-cyan-300/90 font-medium';
   } else {
+    // Committed final words: clean, high readability, zero distracting styles
     styleClasses = 'text-slate-100 hover:text-cyan-200 transition-colors';
   }
 
   return (
     <span
       className={`relative group inline-flex items-baseline ${styleClasses}`}
-      dir={isEnglish ? 'ltr' : undefined}
+      dir={isEnglishOrNumber ? 'ltr' : undefined}
+      style={isEnglishOrNumber ? { unicodeBidi: 'isolate' } : undefined}
     >
       <span>{word.text}</span>
 

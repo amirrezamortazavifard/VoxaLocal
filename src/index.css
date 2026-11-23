@@ -33,17 +33,12 @@
   }
 }
 
-/* Animations for Real-time Streaming Words */
+/* Telegram-Style Real-time Streaming & Re-decoding Word Animations */
 @keyframes wordAppear {
   0% {
     opacity: 0;
-    transform: translateY(6px) scale(0.92);
-    filter: blur(2px);
-  }
-  60% {
-    opacity: 0.9;
-    transform: translateY(-1px) scale(1.02);
-    filter: blur(0px);
+    transform: translateY(4px) scale(0.95);
+    filter: blur(1.5px);
   }
   100% {
     opacity: 1;
@@ -52,14 +47,22 @@
   }
 }
 
-@keyframes redecodeFlash {
+@keyframes wordCorrected {
   0% {
-    background-color: rgba(6, 182, 212, 0.45);
-    box-shadow: 0 0 16px rgba(34, 211, 238, 0.6);
-    transform: scale(1.06);
+    background-color: rgba(245, 158, 11, 0.5);
+    color: #fef3c7;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.65);
+    transform: scale(1.08);
+  }
+  40% {
+    background-color: rgba(245, 158, 11, 0.28);
+    color: #fde68a;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    transform: scale(1.03);
   }
   100% {
-    background-color: rgba(6, 182, 212, 0.12);
+    background-color: rgba(6, 182, 212, 0.15);
+    color: #67e8f9;
     box-shadow: 0 0 0px transparent;
     transform: scale(1);
   }
@@ -86,11 +89,11 @@
 }
 
 .animate-word-appear {
-  animation: wordAppear 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: wordAppear 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.animate-redecode-flash {
-  animation: redecodeFlash 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.animate-word-corrected {
+  animation: wordCorrected 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-cursor-blink {

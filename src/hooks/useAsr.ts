@@ -10,8 +10,10 @@ import {
   PartialEventPayload,
   RecognitionSettings,
   StatusEventPayload,
+  TrackedWordItem,
   WordItem,
 } from '../types/asr';
+import { trackProvisionalWords, pruneExpiredVisualStates } from '../utils/wordDiffTracker';
 
 export function useAsr() {
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
@@ -21,10 +23,13 @@ export function useAsr() {
     threads: 4,
     autoThreads: true,
   });
-  const [status, setStatus] = useState<'idle' | 'recording' | 'processing' | 'paused' | 'error' | 'cancelled'>('idle');
+  const [status, setStatus] = useState<
+    'idle' | 'recording' | 'processing' | 'paused' | 'error' | 'cancelled'
+  >('idle');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [activeLanguage, setActiveLanguage] = useState<string>('fa');
   const [eouProb, setEouProb] = useState<number | null>(null);
+  const [listenersReady, setListenersReady] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<AudioLevelPayload>({
     rms: 0,
     peak: 0,
@@ -33,16 +38,24 @@ export function useAsr() {
   });
 
   // Transcript state:
-  // committedWords: Finalized words that never change
+  // Finalized words that never change
   const [committedWords, setCommittedWords] = useState<WordItem[]>([]);
-  // openWords: Words produced by full-context re-decoding (Partial.open)
+  // Open words from full-context re-decoding
   const [openWords, setOpenWords] = useState<WordItem[]>([]);
-  // tailWords: Streaming pass words (Partial.tail)
+  // Tail words from streaming decoder
   const [tailWords, setTailWords] = useState<WordItem[]>([]);
+  // Telegram-style tracked provisional words with revision diff detection
+  const [trackedProvisionalWords, setTrackedProvisionalWords] = useState<TrackedWordItem[]>([]);
 
   const currentSessionIdRef = useRef<string | null>(null);
+  const committedWordsRef = useRef<WordItem[]>([]);
   const recordingStartTimeRef = useRef<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
+
+  // Keep committedWordsRef in sync
+  useEffect(() => {
+    committedWordsRef.current = committedWords;
+  }, [committedWords]);
 
   // Refresh model status
   const refreshModelStatus = useCallback(async () => {
@@ -87,26 +100,38 @@ export function useAsr() {
     return () => clearInterval(interval);
   }, [status]);
 
-  // Setup Tauri event listeners with bulletproof lifecycle cleanup
+  // Animation expiration ticker
+  useEffect(() => {
+    if (status !== 'recording' && trackedProvisionalWords.length === 0) return;
+    const ticker = setInterval(() => {
+      setTrackedProvisionalWords((prev) => pruneExpiredVisualStates(prev));
+    }, 150);
+    return () => clearInterval(ticker);
+  }, [status, trackedProvisionalWords.length]);
+
+  // Setup Tauri event listeners with bulletproof readiness handshake
   useEffect(() => {
     let isCancelled = false;
     const cleanups: Array<() => void> = [];
 
     async function setupListeners() {
-      // 1. Partial: replace previous uncommitted open & tail words
+      // 1. Partial: replace previous uncommitted open & tail words with Telegram-style diff tracking
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
         if (isCancelled) return;
         if (currentSessionIdRef.current && event.payload.sessionId !== currentSessionIdRef.current) {
           return;
         }
-        setOpenWords(event.payload.open || []);
-        setTailWords(event.payload.tail || []);
+
+        const open = event.payload.open || [];
+        const tail = event.payload.tail || [];
+        setOpenWords(open);
+        setTailWords(tail);
+
+        setTrackedProvisionalWords((prev) =>
+          trackProvisionalWords(prev, open, tail, committedWordsRef.current)
+        );
       });
-      if (isCancelled) {
-        uPartial();
-      } else {
-        cleanups.push(uPartial);
-      }
+      cleanups.push(uPartial);
 
       // 2. Commit: append finalized words to committedWords with timestamp-aware deduplication
       const uCommit = await listen<CommitEventPayload>('asr://commit', (event) => {
@@ -114,17 +139,19 @@ export function useAsr() {
         if (currentSessionIdRef.current && event.payload.sessionId !== currentSessionIdRef.current) {
           return;
         }
+
         if (event.payload.words && event.payload.words.length > 0) {
-          setCommittedWords((prev) => mergeCommittedWords(prev, event.payload.words));
+          setCommittedWords((prev) => {
+            const merged = mergeCommittedWords(prev, event.payload.words);
+            committedWordsRef.current = merged;
+            return merged;
+          });
           setOpenWords([]);
           setTailWords([]);
+          setTrackedProvisionalWords([]);
         }
       });
-      if (isCancelled) {
-        uCommit();
-      } else {
-        cleanups.push(uCommit);
-      }
+      cleanups.push(uCommit);
 
       // 3. Language switched
       const uLang = await listen<LanguageEventPayload>('asr://language', (event) => {
@@ -134,11 +161,7 @@ export function useAsr() {
         }
         setActiveLanguage(event.payload.lang);
       });
-      if (isCancelled) {
-        uLang();
-      } else {
-        cleanups.push(uLang);
-      }
+      cleanups.push(uLang);
 
       // 4. End-of-turn head output
       const uEou = await listen<EouEventPayload>('asr://eou', (event) => {
@@ -148,35 +171,32 @@ export function useAsr() {
         }
         setEouProb(event.payload.p);
       });
-      if (isCancelled) {
-        uEou();
-      } else {
-        cleanups.push(uEou);
-      }
+      cleanups.push(uEou);
 
       // 5. Engine status
       const uStatus = await listen<StatusEventPayload>('asr://status', (event) => {
         if (isCancelled) return;
-        if (event.payload.sessionId && currentSessionIdRef.current && event.payload.sessionId !== currentSessionIdRef.current) {
+        if (
+          event.payload.sessionId &&
+          currentSessionIdRef.current &&
+          event.payload.sessionId !== currentSessionIdRef.current
+        ) {
           return;
         }
         setStatus(event.payload.status as any);
       });
-      if (isCancelled) {
-        uStatus();
-      } else {
-        cleanups.push(uStatus);
-      }
+      cleanups.push(uStatus);
 
       // 6. Audio level visualization
       const uLevel = await listen<AudioLevelPayload>('audio://level', (event) => {
         if (isCancelled) return;
         setAudioLevel(event.payload);
       });
-      if (isCancelled) {
-        uLevel();
-      } else {
-        cleanups.push(uLevel);
+      cleanups.push(uLevel);
+
+      if (!isCancelled) {
+        setListenersReady(true);
+        logListenersReady();
       }
     }
 
@@ -184,6 +204,7 @@ export function useAsr() {
 
     return () => {
       isCancelled = true;
+      setListenersReady(false);
       cleanups.forEach((fn) => {
         try {
           fn();
@@ -194,21 +215,37 @@ export function useAsr() {
     };
   }, []);
 
-  const startRecording = async () => {
+  const startRecording = async (customSessionId?: string) => {
     try {
       setCommittedWords([]);
+      committedWordsRef.current = [];
       setOpenWords([]);
       setTailWords([]);
+      setTrackedProvisionalWords([]);
       setRecordingDuration(0);
       recordingStartTimeRef.current = Date.now();
-      const sessionId = await invoke<string>('start_recording');
-      currentSessionIdRef.current = sessionId;
-      setCurrentSessionId(sessionId);
+
+      // Pre-assign session ID to prevent event race conditions
+      const newSessionId = customSessionId || crypto.randomUUID();
+      currentSessionIdRef.current = newSessionId;
+      setCurrentSessionId(newSessionId);
       setStatus('recording');
-      return sessionId;
+
+      const confirmedSessionId = await invoke<string>('start_recording', {
+        clientSessionId: newSessionId,
+      });
+
+      if (confirmedSessionId !== newSessionId) {
+        currentSessionIdRef.current = confirmedSessionId;
+        setCurrentSessionId(confirmedSessionId);
+      }
+
+      return confirmedSessionId;
     } catch (err: any) {
       console.error('Failed to start recording:', err);
       setStatus('error');
+      currentSessionIdRef.current = null;
+      setCurrentSessionId(null);
       throw err;
     }
   };
@@ -218,6 +255,9 @@ export function useAsr() {
       setStatus('processing');
       await invoke('stop_recording');
       setStatus('idle');
+      setOpenWords([]);
+      setTailWords([]);
+      setTrackedProvisionalWords([]);
     } catch (err: any) {
       console.error('Failed to stop recording:', err);
       setStatus('error');
@@ -231,6 +271,9 @@ export function useAsr() {
       setStatus('idle');
       setOpenWords([]);
       setTailWords([]);
+      setTrackedProvisionalWords([]);
+      currentSessionIdRef.current = null;
+      setCurrentSessionId(null);
     } catch (err) {
       console.error('Failed to cancel recording:', err);
     }
@@ -238,8 +281,10 @@ export function useAsr() {
 
   const clearTranscript = () => {
     setCommittedWords([]);
+    committedWordsRef.current = [];
     setOpenWords([]);
     setTailWords([]);
+    setTrackedProvisionalWords([]);
     setRecordingDuration(0);
     setEouProb(null);
   };
@@ -264,12 +309,16 @@ export function useAsr() {
     return updated;
   };
 
-  // Filter uncommitted words that may duplicate or overlap with already committed words
-  const cleanOpenWords = filterUncommittedWords(openWords, committedWords);
-  const cleanTailWords = filterUncommittedWords(tailWords, committedWords, cleanOpenWords);
-
-  // Combine all current words for full text preview without duplicates
-  const allCurrentWords = [...committedWords, ...cleanOpenWords, ...cleanTailWords];
+  // Combine all current words for full plain text export
+  const allCurrentWords: WordItem[] = [
+    ...committedWords,
+    ...trackedProvisionalWords.map((tw) => ({
+      text: tw.text,
+      start: tw.start,
+      end: tw.end,
+      join: tw.join,
+    })),
+  ];
 
   return {
     modelInfo,
@@ -280,10 +329,12 @@ export function useAsr() {
     eouProb,
     audioLevel,
     committedWords,
-    openWords: cleanOpenWords,
-    tailWords: cleanTailWords,
+    openWords,
+    tailWords,
+    trackedProvisionalWords,
     allCurrentWords,
     recordingDuration,
+    listenersReady,
     startRecording,
     stopRecording,
     cancelRecording,
@@ -294,6 +345,10 @@ export function useAsr() {
     updateSettings,
     refreshSettings,
   };
+}
+
+function logListenersReady() {
+  console.log('[VoxaLocal ASR] IPC event listeners registered and ready for streaming.');
 }
 
 /**
@@ -338,42 +393,4 @@ function mergeCommittedWords(existing: WordItem[], incoming: WordItem[]): WordIt
   }
 
   return [...existing, ...filteredIncoming];
-}
-
-/**
- * Filters out uncommitted open/tail words that overlap in time or match text
- * of words that have already been finalized.
- */
-function filterUncommittedWords(
-  words: WordItem[],
-  committed: WordItem[],
-  existingPrefix: WordItem[] = []
-): WordItem[] {
-  if (!words || words.length === 0) return [];
-  if (committed.length === 0 && existingPrefix.length === 0) return words;
-
-  const lastCommittedEnd = committed.length > 0 ? committed[committed.length - 1].end : -1;
-
-  return words.filter((w) => {
-    // Drop if before last committed end timestamp
-    if (w.start < lastCommittedEnd - 0.05) {
-      return false;
-    }
-
-    // Drop if already in committed words
-    const inCommitted = committed.some(
-      (cw) =>
-        (Math.abs(cw.start - w.start) < 0.12 && Math.abs(cw.end - w.end) < 0.12) ||
-        (cw.text.trim() === w.text.trim() && Math.abs(cw.start - w.start) < 0.35)
-    );
-    if (inCommitted) return false;
-
-    // Drop if already in prefix words
-    const inPrefix = existingPrefix.some(
-      (pw) =>
-        (Math.abs(pw.start - w.start) < 0.12 && Math.abs(pw.end - w.end) < 0.12) ||
-        (pw.text.trim() === w.text.trim() && Math.abs(pw.start - w.start) < 0.35)
-    );
-    return !inPrefix;
-  });
 }

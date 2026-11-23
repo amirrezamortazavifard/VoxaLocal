@@ -5,6 +5,19 @@ export interface WordItem {
   join: boolean;
 }
 
+export type WordVisualState =
+  | 'committed'
+  | 'provisional-new'
+  | 'provisional-corrected'
+  | 'provisional-stable';
+
+export interface TrackedWordItem extends WordItem {
+  id: string;
+  visualState: WordVisualState;
+  lastRevisedAt?: number;
+  createdAt: number;
+}
+
 export interface PartialEventPayload {
   sessionId: string;
   open: WordItem[];
@@ -60,6 +73,24 @@ export interface RecognitionSettings {
   threads: number;
   autoThreads: boolean;
 }
+
+export interface QuickDictationSettings {
+  enabled: boolean;
+  shortcut: string;
+  mode: 'pushToTalk' | 'toggle';
+  autoPaste: boolean;
+  timeoutSeconds: number;
+  showWaveform: boolean;
+}
+
+export type PttState =
+  | 'idle'
+  | 'starting'
+  | 'recording'
+  | 'finalizing'
+  | 'result'
+  | 'cancelled'
+  | 'error';
 
 export interface AudioDeviceInfo {
   id: string;

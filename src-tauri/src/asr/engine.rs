@@ -8,6 +8,13 @@ use uuid::Uuid;
 use crate::asr::model_manager::ModelManager;
 use crate::asr::session::{spawn_session_worker, ActiveSession, SessionCommand};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionOrigin {
+    Studio,
+    QuickDictation,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognitionSettings {
@@ -76,11 +83,30 @@ impl AsrEngine {
         self.active_session.read().is_some()
     }
 
-    pub fn start_recording(&self, app: AppHandle, models: Arc<tinyasr::Models>) -> Result<String, String> {
-        // Stop any currently active session first
-        let _ = self.cancel_recording();
+    pub fn active_origin(&self) -> Option<SessionOrigin> {
+        self.active_session.read().as_ref().map(|s| s.origin)
+    }
 
-        let session_id = Uuid::new_v4().to_string();
+    pub fn active_session_id(&self) -> Option<String> {
+        self.active_session.read().as_ref().map(|s| s.session_id.clone())
+    }
+
+    pub fn start_recording(
+        &self,
+        app: AppHandle,
+        models: Arc<tinyasr::Models>,
+        origin: SessionOrigin,
+        client_session_id: Option<String>,
+    ) -> Result<String, String> {
+        let mut session_guard = self.active_session.write();
+        if let Some(active) = session_guard.as_ref() {
+            return Err(format!(
+                "RECORDING_ALREADY_ACTIVE: A recording session ({:?}, id: {}) is already active.",
+                active.origin, active.session_id
+            ));
+        }
+
+        let session_id = client_session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let (tx, rx) = bounded::<SessionCommand>(256);
 
         let settings = self.settings.read().clone();
@@ -96,12 +122,13 @@ impl AsrEngine {
 
         let active = ActiveSession {
             session_id: session_id.clone(),
+            origin,
             command_sender: tx,
             worker_handle: Some(handle),
         };
 
-        *self.active_session.write() = Some(active);
-        log::info!("Recording session started: {}", session_id);
+        *session_guard = Some(active);
+        log::info!("Recording session started [{:?}]: {}", origin, session_id);
         Ok(session_id)
     }
 
@@ -113,31 +140,61 @@ impl AsrEngine {
         }
     }
 
-    pub fn stop_recording(&self) -> Result<(), String> {
+    pub fn stop_recording(&self, origin: SessionOrigin) -> Result<(), String> {
         let mut session_guard = self.active_session.write();
+        if let Some(active) = session_guard.as_ref() {
+            if active.origin != origin {
+                return Err(format!(
+                    "Cannot stop recording: active session belongs to {:?}, requested by {:?}",
+                    active.origin, origin
+                ));
+            }
+        }
+
         if let Some(mut active) = session_guard.take() {
             let _ = active.command_sender.send(SessionCommand::Finish);
             if let Some(handle) = active.worker_handle.take() {
                 let _ = handle.join();
             }
-            log::info!("Recording session stopped: {}", active.session_id);
+            log::info!("Recording session stopped [{:?}]: {}", origin, active.session_id);
             Ok(())
         } else {
             Ok(())
         }
     }
 
-    pub fn cancel_recording(&self) -> Result<(), String> {
+    pub fn cancel_recording(&self, origin: SessionOrigin) -> Result<(), String> {
+        let mut session_guard = self.active_session.write();
+        if let Some(active) = session_guard.as_ref() {
+            if active.origin != origin {
+                return Err(format!(
+                    "Cannot cancel recording: active session belongs to {:?}, requested by {:?}",
+                    active.origin, origin
+                ));
+            }
+        }
+
+        if let Some(mut active) = session_guard.take() {
+            let _ = active.command_sender.send(SessionCommand::Cancel);
+            if let Some(handle) = active.worker_handle.take() {
+                let _ = handle.join();
+            }
+            log::info!("Recording session cancelled [{:?}]: {}", origin, active.session_id);
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn force_cancel(&self) -> Result<(), String> {
         let mut session_guard = self.active_session.write();
         if let Some(mut active) = session_guard.take() {
             let _ = active.command_sender.send(SessionCommand::Cancel);
             if let Some(handle) = active.worker_handle.take() {
                 let _ = handle.join();
             }
-            log::info!("Recording session cancelled: {}", active.session_id);
-            Ok(())
-        } else {
-            Ok(())
+            log::info!("Recording session force-cancelled: {}", active.session_id);
         }
+        Ok(())
     }
 }

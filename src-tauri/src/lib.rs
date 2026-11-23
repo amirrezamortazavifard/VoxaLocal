@@ -1,56 +1,107 @@
 pub mod asr;
 pub mod audio;
 pub mod commands;
+pub mod overlay;
+pub mod shortcuts;
 pub mod storage;
+pub mod system;
+pub mod tray;
 
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 
 use crate::asr::{AsrEngine, ModelManager};
 use crate::audio::AudioCapture;
 use crate::commands::*;
+use crate::shortcuts::manager::{QuickDictationSettings, ShortcutManager};
 use crate::storage::{Database, HistoryRepository, SettingsRepository};
+use crate::tray::manager::TrayManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
     log::info!("Starting VoxLocal backend initialization...");
 
+    let shortcut_manager = Arc::new(ShortcutManager::new());
+    let shortcut_mgr_handler = Arc::clone(&shortcut_manager);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(|app| {
-            let app_data_dir = app
-                .path()
-                .app_local_data_dir()
-                .map_err(|e| format!("Failed to get app local data dir: {e}"))?;
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, _shortcut, event| {
+                    shortcut_mgr_handler.handle_shortcut_event(app, event.state());
+                })
+                .build(),
+        )
+        .setup({
+            let shortcut_manager = Arc::clone(&shortcut_manager);
+            move |app| {
+                let app_data_dir = app
+                    .path()
+                    .app_local_data_dir()
+                    .map_err(|e| format!("Failed to get app local data dir: {e}"))?;
 
-            std::fs::create_dir_all(&app_data_dir)
-                .map_err(|e| format!("Failed to create app data directory: {e}"))?;
+                std::fs::create_dir_all(&app_data_dir)
+                    .map_err(|e| format!("Failed to create app data directory: {e}"))?;
 
-            log::info!("VoxLocal app local data directory: {:?}", app_data_dir);
+                log::info!("VoxLocal app local data directory: {:?}", app_data_dir);
 
-            // Initialize storage
-            let database = Database::new(&app_data_dir)
-                .map_err(|e| format!("Database initialization failed: {e}"))?;
-            let history_repo = Arc::new(HistoryRepository::new(database.conn()));
-            let settings_repo = Arc::new(SettingsRepository::new(database.conn()));
+                // Initialize storage
+                let database = Database::new(&app_data_dir)
+                    .map_err(|e| format!("Database initialization failed: {e}"))?;
+                let history_repo = Arc::new(HistoryRepository::new(database.conn()));
+                let settings_repo = Arc::new(SettingsRepository::new(database.conn()));
 
-            // Initialize ASR and Audio subsystems
-            let model_manager = Arc::new(ModelManager::new(&app_data_dir));
-            let asr_engine = Arc::new(AsrEngine::new(Arc::clone(&model_manager)));
-            let audio_capture = Arc::new(AudioCapture::new());
+                // Load persisted quick dictation settings if available
+                if let Ok(Some(saved_qd_str)) = settings_repo.get("quick_dictation_settings") {
+                    if let Ok(saved_qd) = serde_json::from_str::<QuickDictationSettings>(&saved_qd_str) {
+                        log::info!("Restored persisted Quick Dictation settings: {:?}", saved_qd);
+                        let _ = shortcut_manager.update_settings(&app.handle(), saved_qd);
+                    }
+                } else {
+                    // Register default shortcut
+                    let default_settings = shortcut_manager.settings();
+                    let _ = shortcut_manager.register_shortcut(
+                        &app.handle(),
+                        &default_settings.shortcut,
+                        default_settings.enabled,
+                    );
+                }
 
-            // Register state with Tauri
-            app.manage(model_manager);
-            app.manage(asr_engine);
-            app.manage(audio_capture);
-            app.manage(history_repo);
-            app.manage(settings_repo);
+                // Initialize ASR and Audio subsystems
+                let model_manager = Arc::new(ModelManager::new(&app_data_dir));
+                let asr_engine = Arc::new(AsrEngine::new(Arc::clone(&model_manager)));
+                let audio_capture = Arc::new(AudioCapture::new());
 
-            log::info!("VoxLocal backend services successfully registered.");
-            Ok(())
+                // Setup system tray
+                if let Err(e) = TrayManager::setup(&app.handle()) {
+                    log::warn!("System tray setup warning: {e}");
+                }
+
+                // Register state with Tauri
+                app.manage(model_manager);
+                app.manage(asr_engine);
+                app.manage(audio_capture);
+                app.manage(history_repo);
+                app.manage(settings_repo);
+                app.manage(shortcut_manager);
+
+                log::info!("VoxLocal backend services successfully registered.");
+                Ok(())
+            }
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                // If the main studio window is closed, hide it to keep global push-to-talk alive
+                if window.label() == "main" {
+                    log::info!("Main studio window close intercepted: hiding window instead of exiting.");
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             get_app_status,
@@ -71,6 +122,12 @@ pub fn run() {
             save_transcript,
             delete_history_item,
             clear_history,
+            get_quick_dictation_settings,
+            update_quick_dictation_settings,
+            trigger_quick_dictation_paste,
+            dismiss_quick_dictation,
+            open_in_studio,
+            get_quick_dictation_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoxLocal application");

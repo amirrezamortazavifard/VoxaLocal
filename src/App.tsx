@@ -10,6 +10,7 @@ import { FileTranscription } from './components/FileTranscription';
 import { HistoryView } from './components/HistoryView';
 import { SettingsModal } from './components/SettingsModal';
 import { PerformancePanel } from './components/PerformancePanel';
+import { QuickDictationOverlay } from './components/quick-dictation/QuickDictationOverlay';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 
 const MainApp: React.FC = () => {
@@ -25,10 +26,10 @@ const MainApp: React.FC = () => {
     eouProb,
     audioLevel,
     committedWords,
-    openWords,
-    tailWords,
+    trackedProvisionalWords,
     allCurrentWords,
     recordingDuration,
+    listenersReady,
     startRecording,
     stopRecording,
     cancelRecording,
@@ -51,6 +52,14 @@ const MainApp: React.FC = () => {
         setErrorMessage(String(err));
       }
     } else {
+      if (!listenersReady) {
+        setErrorMessage(
+          language === 'fa'
+            ? 'سرویس‌های صوتی در حال آماده‌سازی هستند؛ لطفاً چند لحظه صبر کنید.'
+            : 'Audio services are initializing; please wait a moment.'
+        );
+        return;
+      }
       if (!modelInfo?.isInstalled) {
         setErrorMessage(
           language === 'fa'
@@ -191,8 +200,7 @@ const MainApp: React.FC = () => {
             <div className="flex-1 min-h-[420px]">
               <TranscriptView
                 committedWords={committedWords}
-                openWords={openWords}
-                tailWords={tailWords}
+                trackedProvisionalWords={trackedProvisionalWords}
                 allWords={allCurrentWords}
                 status={status}
                 activeLanguage={activeLanguage}
@@ -241,9 +249,11 @@ const MainApp: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  const isOverlay = window.location.search.includes('window=quick-dictation');
+
   return (
     <LanguageProvider>
-      <MainApp />
+      {isOverlay ? <QuickDictationOverlay /> : <MainApp />}
     </LanguageProvider>
   );
 };

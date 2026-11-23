@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tauri::{AppHandle, State};
-use crate::asr::{AsrEngine, RecognitionSettings};
+use crate::asr::{AsrEngine, RecognitionSettings, SessionOrigin};
 use crate::audio::AudioCapture;
 
 #[tauri::command]
@@ -19,14 +19,15 @@ pub fn update_recognition_settings(
 #[tauri::command]
 pub fn start_recording(
     app: AppHandle,
+    client_session_id: Option<String>,
     asr_engine: State<'_, Arc<AsrEngine>>,
     audio_capture: State<'_, Arc<AudioCapture>>,
 ) -> Result<String, String> {
     let models = asr_engine.ensure_models_loaded()?;
-    let session_id = asr_engine.start_recording(app.clone(), models)?;
+    let session_id = asr_engine.start_recording(app.clone(), models, SessionOrigin::Studio, client_session_id)?;
 
     if let Err(e) = audio_capture.start_capture(app, Arc::clone(&asr_engine)) {
-        let _ = asr_engine.cancel_recording();
+        let _ = asr_engine.cancel_recording(SessionOrigin::Studio);
         return Err(format!("Failed to start microphone audio capture: {e}"));
     }
 
@@ -39,7 +40,7 @@ pub fn stop_recording(
     audio_capture: State<'_, Arc<AudioCapture>>,
 ) -> Result<(), String> {
     audio_capture.stop_capture();
-    asr_engine.stop_recording()
+    asr_engine.stop_recording(SessionOrigin::Studio)
 }
 
 #[tauri::command]
@@ -48,5 +49,5 @@ pub fn cancel_recording(
     audio_capture: State<'_, Arc<AudioCapture>>,
 ) -> Result<(), String> {
     audio_capture.stop_capture();
-    asr_engine.cancel_recording()
+    asr_engine.cancel_recording(SessionOrigin::Studio)
 }

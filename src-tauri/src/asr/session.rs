@@ -16,6 +16,7 @@ pub enum SessionCommand {
 
 pub struct ActiveSession {
     pub session_id: String,
+    pub origin: crate::asr::SessionOrigin,
     pub command_sender: Sender<SessionCommand>,
     pub worker_handle: Option<JoinHandle<()>>,
 }

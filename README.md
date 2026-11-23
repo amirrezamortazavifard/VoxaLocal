@@ -5,13 +5,14 @@
 </p>
 
 <p align="center">
-  <strong>استودیوی بومی و ۱۰۰٪ آفلاین بازشناسی گفتار فارسی و انگلیسی بر پایه موتور قدرتمند TinyASR</strong><br>
-  <em>High-performance, privacy-first, real-time desktop speech-to-text studio powered by native TinyASR and Zipformer2 transducers.</em>
+  <strong>استودیوی بومی و ۱۰۰٪ آفلاین بازشناسی گفتار فارسی و انگلیسی با دیکته سراسری (Push-to-Talk) و انیمیشن بازگشایی زنده</strong><br>
+  <em>High-performance, privacy-first, real-time desktop speech-to-text studio & global push-to-talk dictation powered by native TinyASR and Zipformer2 transducers.</em>
 </p>
 
 <p align="center">
   <a href="https://github.com/amirrezamortazavifard/VoxaLocal/releases"><img src="https://img.shields.io/github/v/release/amirrezamortazavifard/VoxaLocal?color=06b6d4&style=flat-square" alt="GitHub Release"></a>
   <img src="https://img.shields.io/badge/Privacy-100%25%20Offline-emerald?style=flat-square" alt="100% Offline">
+  <img src="https://img.shields.io/badge/Push--to--Talk-Global%20Hotkey-cyan?style=flat-square" alt="Push-to-Talk">
   <img src="https://img.shields.io/badge/Tauri-2.0-blue?style=flat-square" alt="Tauri 2.0">
   <img src="https://img.shields.io/badge/Rust-2021-orange?style=flat-square" alt="Rust 2021">
   <img src="https://img.shields.io/badge/Engine-TinyASR%20int4-purple?style=flat-square" alt="TinyASR">
@@ -25,13 +26,17 @@
 
 **VoxaLocal** is a production-grade, 100% offline desktop speech-to-text application designed specifically for **Persian (`fa`)** and **English (`en`)**. It faithfully implements the speech recognition pipeline pioneered by Telegram's **TinyASR** engine, executing quantized Zipformer2 transducer neural networks entirely locally on your CPU.
 
+VoxaLocal provides two core workflows:
+1. **Full Studio Workspace**: Live streaming recognition with Telegram-style word-by-word visual re-decoding, editable transcripts, audio file transcription, SQLite history, and multi-format subtitle exports.
+2. **Global Quick Dictation (Push-to-Talk)**: System-wide lightweight voice dictation triggered via a configurable global hotkey (`Ctrl + Shift + Space`) that captures speech, streams words into a floating non-activating overlay, and automatically pastes text into your active target application.
+
 ### چرا VoxaLocal؟ (Why VoxaLocal?)
 - **حریم خصوصی ۱۰۰٪ و بدون اینترنت**: پردازش صدا به طور کامل بر روی پردازنده کامپیوتر شما انجام می‌شود. هیچ صدایی به سرورهای ابری، گوگل یا وب‌سرویس‌های خارجی ارسال نمی‌شود.
-- **بازشناسی زنده با انیمیشن روان (Streaming Recognition)**: کلمات بلافاصله با صحبت کردن با کمترین تاخیر زمانی (Sub-Second Latency) بر روی صفحه نمایش ظاهر می‌شوند.
-- **بازگشایی و اصلاح هوشمند جملات ناتمام (Full-Context Re-decoding)**: با پیشرفت جمله، موتور کلمات قبلی را بر اساس زمینه کامل جمله مجدداً رمزگشایی و اصلاح می‌کند (الگوریتم رسمی TinyASR با Beam Search = 4).
-- **تشخیص پایان گفتار و مرز جملات (Silero VAD & EOU)**: تشخیص دقیق سکوت و پایان قطعی عبارات با استفاده از Silero VAD v5 و هد تشخیصی End-of-Turn.
-- **دو زبانه کامل (فارسی و انگلیسی)**: رابط کاربری دو زبانه و توانایی بازشناسی کلمات تخصصی انگلیسی در میان گفتار فارسی.
-- **رونویسی فایل‌های صوتی (File Transcription)**: تبدیل فایل‌های صوتی WAV، MP3، FLAC و M4A به همراه خروجی زیرنویس استاندارد (SRT)، متن ساده (TXT) و فایل زمانی (JSON).
+- **دیکته صوتی سراسری در هر برنامه (Global Push-to-Talk)**: با فشردن کلید میانبر `Ctrl + Shift + Space` در هر برنامه‌ای (مرورگر، ورد، تلگرام، ادیتور کد)، متن به صورت زنده پیاده شده و مستقیماً Paste می‌شود.
+- **بازشناسی زنده با سبک تلگرام (Telegram-Style Word-by-Word)**: تفکیک تصویری هوشمند میان کلمات جاری (`tail`)، اصلاحات ناشی از بازگشایی متن کامل (`open` با انیمیشن ملایم هایلایت)، و کلمات نهایی‌شده (`commit` بدون تغییر).
+- **پنجره شناور بدون از دست رفتن فوکوس (Non-Activating Window)**: پنجره شناور دیکته سریع در ویندوز با `SW_SHOWNOACTIVATE` اجرا می‌شود و فوکوس کیبورد برنامه فعال شما را نمی‌دزدد.
+- **آیکون System Tray و کارکرد در پس‌زمینه**: بستن پنجره اصلی نرم‌افزار آن را در System Tray پنهان می‌کند تا کلید میانبر همیشه فعال و آماده به کار بماند.
+- **ویرایش زنده متن و تاریخچه SQLite**: امکان ویرایش متن نهایی در استودیو و پنجره شناور قبل از ذخیره‌سازی یا ارسال.
 - **اصلاح هوشمند تایپوگرافی فارسی (Smart ZWNJ)**: رعایت خودکار نیم‌فاصله‌ها و یکسان‌سازی نویسه‌های عربی به فارسی.
 
 ---
@@ -40,13 +45,13 @@
 
 | قابلیت | شرح |
 |---|---|
-| 🎙️ **استودیو زنده** | ضبط و تایپ صوتی ریل‌تایم با انیمیشن‌های تمایز کلمات (نهایی‌شده، بازگشایی‌شده، و جریان پیش‌نویس). |
-| ⚡ **پردازش چند هسته‌ای SIMD** | بهینه‌سازی شده با دستورالعمل‌های AVX2 و AVX-512 VNNI پردازنده برای کمترین میزان مصرف باتری و CPU. |
-| 🛡️ **تشخیص فعالیت صوتی (VAD)** | ادغام Silero VAD نسخه ۵ با فرکانس ۱۶ کیلوهرتز برای حذف نویز پس‌زمینه و سکوت. |
-| 📁 **رونویسی فایل‌های طولانی** | رونویسی سریع‌تر از زمان واقعی (Faster-than-realtime) فایل‌های پادکست، مصاحبه و جلسات صوتی. |
-| ⏱️ **برچسب زمانی کلمات** | محاسبه دقیق زمان شروع و پایان هر تک کلمه با دقت هزارم ثانیه و تولید فایل SRT. |
-| 💾 **تاریخچه محلی (SQLite)** | ذخیره ایمن تمامی رونویسی‌ها در پایگاه داده داخلی با امکان جستجو و بازیابی. |
-| 🌐 **رابط کاربری مدرن** | طراحی Glassmorphic سرمه‌ای چشم‌نواز با پشتیبانی کامل از چینش راست‌به‌چپ (RTL) و چپ‌به‌راست (LTR). |
+| 🎙️ **دیکته صوتی سراسری (PTT)** | تایپ صوتی با کلید میانبر در تمام برنامه‌های دسکتاپ با قابلیت بازگشت فوکوس و Paste خودکار. |
+| ⚡ **استودیو زنده سبک تلگرام** | رونویسی ریل‌تایم با انیمیشن‌های اختصاصی کلمات تازه و اصلاح‌شده (Word Diff Tracking). |
+| 🛡️ **موتور TinyASR بومی** | اجرای کاستوم Zipformer2 RNN-T/TDT با کوانتیزاسیون int4 و تسریع سخت‌افزاری AVX2 / AVX-512. |
+| 🪟 **پنجره شناور سبک (Overlay)** | پنجره جمع‌وجور شناور، همیشه در بالا، با نمایش شکل‌موج صدا و شمارش معکوس بستن خودکار. |
+| 🔔 **سینی سیستم (System Tray)** | حضور دائم در کنار ساعت ویندوز با امکان باز کردن سریع، مشاهده وضعیت و خروج پاکیزه. |
+| 📁 **رونویسی فایل‌های صوتی** | تبدیل فایل‌های WAV، MP3، FLAC و M4A به همراه خروجی زیرنویس استاندارد (SRT)، متن (TXT) و JSON. |
+| 💾 **پایگاه‌داده محلی SQLite** | ذخیره ایمن تمامی رونویسی‌های استودیو و دیکته‌های سریع در پایگاه داده داخلی بدون اتصال شبکه. |
 
 ---
 
@@ -56,8 +61,8 @@ VoxaLocal uses an asynchronous, thread-isolated architecture guaranteeing zero a
 
 ```mermaid
 flowchart TD
-    subgraph Audio_Layer [Audio Capture & DSP]
-        MIC[Microphone / CPAL] -->|Audio Chunks| MIX[Mono Downmix]
+    subgraph Audio_Layer [Audio Capture & DSP (Zero-Allocation)]
+        MIC[Microphone / CPAL] -->|AudioBlock 2048 f32| MIX[Mono Downmix on Stack]
         MIX -->|44.1k / 48k| RES[Rubato 0.16 Resampler]
         RES -->|16 kHz Mono Float32| RING[Bounded Audio Channel]
     end
@@ -71,11 +76,16 @@ flowchart TD
         REDEC --> DISPATCH
     end
 
+    subgraph Shortcuts_Overlay [Global Dictation Subsystem]
+        HOTKEY[Global Hotkey Plugin] --> SM[PttStateMachine]
+        SM --> OVERLAY[Floating Non-Activating Overlay]
+        SM --> PASTE[Win32 Synthetic Paste]
+    end
+
     subgraph IPC_Layer [Tauri IPC Channels]
-        DISPATCH -->|asr://partial| UI[React 18 Frontend]
-        DISPATCH -->|asr://commit| UI
-        DISPATCH -->|audio://level| UI
-        DISPATCH -->|asr://eou| UI
+        DISPATCH -->|asr://partial| DIFF[WordDiffTracker Engine]
+        DISPATCH -->|asr://commit| DIFF
+        DIFF --> UI[Studio & Quick Dictation Views]
     end
 
     subgraph Storage [Persistence]
@@ -85,12 +95,15 @@ flowchart TD
 
 ---
 
-## 📦 Pinned Model & Engine Specifications
+## 📚 Technical Documentation
 
-- **ASR Engine**: Vendored Rust implementation of `dkaraush/tinyasr` (Commit: `42d8e11e13653f73c99978521de1c5dd145d0332`).
-- **ASR Model**: `en-fa.tzf` (Multilingual Persian-English Zipformer2 transducer, ~28.7 MiB compressed, ~60M parameters, int4 SIMD quantization).
-- **VAD Model**: `silero_vad.onnx` (Silero VAD v5, 16 kHz mono).
-- **Decoding Options**: Default Beam Width = 4, CPU multithreading (auto-allocated based on logical core count).
+- 📖 [System Architecture (`ARCHITECTURE.md`)](ARCHITECTURE.md)
+- 🎙️ [Global Quick Dictation Guide (`QUICK_DICTATION.md`)](QUICK_DICTATION.md)
+- ⌨️ [Global Shortcuts Architecture (`GLOBAL_SHORTCUTS.md`)](GLOBAL_SHORTCUTS.md)
+- 🪟 [Floating Overlay Architecture (`OVERLAY_ARCHITECTURE.md`)](OVERLAY_ARCHITECTURE.md)
+- 🔬 [Live Recognition & Re-decoding Diagnostics (`LIVE_RECOGNITION_DIAGNOSTICS.md`)](LIVE_RECOGNITION_DIAGNOSTICS.md)
+- 🧠 [Model Installation & Verification (`MODEL_INSTALLATION.md`)](MODEL_INSTALLATION.md)
+- 🔒 [Offline & Privacy Architecture (`OFFLINE_ARCHITECTURE.md`)](OFFLINE_ARCHITECTURE.md)
 
 ---
 
@@ -139,11 +152,6 @@ npm run tauri build
    - فایل مدل تشخیص صوت: `silero_vad.onnx` یا `silero_vad.onnx.gz`
    - دکمه **«بررسی و نصب مدل‌های انتخابی»** را بزنید.
 4. سپس روی **«بارگذاری مدل در حافظه RAM»** کلیک کنید. پس از سبز شدن نشانگر، برنامه آماده تبدیل صدا به متن است!
-
----
-
-## 🏷️ GitHub Topics & Tags
-`speech-recognition` • `speech-to-text` • `asr` • `persian` • `farsi` • `tinyasr` • `zipformer` • `silero-vad` • `tauri` • `rust` • `react` • `offline` • `privacy-first` • `desktop-app` • `voice-recognition` • `transcription`
 
 ---
 
