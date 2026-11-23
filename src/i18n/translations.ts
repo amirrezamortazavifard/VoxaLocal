@@ -3,7 +3,7 @@ export type AppLanguage = 'fa' | 'en';
 export const translations = {
   fa: {
     // Brand & Header
-    appTitle: 'VoxLocal',
+    appTitle: 'VoxaLocal',
     appSubtitle: 'استودیوی بومی بازشناسی گفتار آفلاین (TinyASR)',
     versionBadge: 'v0.1.0 آفلاین',
     offlineBadge: 'آفلاین ۱۰۰٪',
@@ -148,7 +148,7 @@ export const translations = {
   },
   en: {
     // Brand & Header
-    appTitle: 'VoxLocal',
+    appTitle: 'VoxaLocal',
     appSubtitle: 'Offline Speech Recognition Studio (TinyASR)',
     versionBadge: 'v0.1.0 Offline',
     offlineBadge: '100% Offline',

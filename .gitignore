@@ -7,10 +7,36 @@ dist-ssr/
 # Rust / Cargo
 src-tauri/target/
 vendor/tinyasr/target/
+target/
 **/*.rs.bk
+Cargo.lock.bak
 
 # Tauri
 src-tauri/gen/
+release_builds/
+
+# Compiled Binaries & Installers
+*.exe
+*.msi
+*.dll
+*.dylib
+*.so
+*.dmg
+*.AppImage
+*.deb
+
+# Databases & Runtime Data
+*.db
+*.db-wal
+*.db-shm
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# Environment & Secrets
+.env
+.env.local
+.env.*
 
 # Logs
 *.log
@@ -21,5 +47,8 @@ yarn-error.log*
 # OS / Editor
 .DS_Store
 Thumbs.db
-.vscode/
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
 .idea/
+*.suo

@@ -1,109 +1,155 @@
-# VoxLocal — Offline Persian Speech Recognition Studio
+# VoxaLocal — Offline Persian & English Speech Recognition Studio
 
-**VoxLocal** is an offline, production-grade desktop application for real-time and file-based Persian and English speech-to-text recognition. It is powered by the native **TinyASR** engine running trained Zipformer2 transducer models, completely local and private on your machine.
+<p align="center">
+  <img src="public/icon.png" width="128" height="128" alt="VoxaLocal Logo" />
+</p>
 
----
+<p align="center">
+  <strong>استودیوی بومی و ۱۰۰٪ آفلاین بازشناسی گفتار فارسی و انگلیسی بر پایه موتور قدرتمند TinyASR</strong><br>
+  <em>High-performance, privacy-first, real-time desktop speech-to-text studio powered by native TinyASR and Zipformer2 transducers.</em>
+</p>
 
-## Highlights
-
-- **100% Offline & Private**: Zero cloud APIs, zero telemetry, zero external network calls.
-- **Real-Time Streaming Speech Recognition**: Sub-second hypothesis generation as you speak.
-- **Full-Context Re-decoding**: Continuous correction of unfinished sentences using TinyASR's official beam-search pass (Beam Width = 4).
-- **Dual Visual State**: Distinct visual differentiation between:
-  - **Finalized words** (immutable commits)
-  - **Re-decoded words** (high-accuracy second-pass hypotheses)
-  - **Provisional words** (streaming decoder tail)
-- **Silero VAD & End-of-Turn (EOU)**: Accurate voice activity detection (VAD v5) and acoustic sentence boundary detection.
-- **Multilingual Support**: Primary focus on Persian (`fa`) with seamless technical English (`en`) recognition.
-- **Offline Audio File Transcription**: Transcribe WAV, MP3, FLAC, and M4A files with word-level timestamps and SRT subtitle export.
-- **Local History (SQLite)**: Searchable local archive of past transcriptions and audio metadata.
-- **Persian Typography Normalization**: Optional smart Zero-Width Non-Joiner (نیم‌فاصله) insertion and Arabic-to-Persian letter harmonization.
-
----
-
-## Pinned TinyASR Engine
-
-VoxLocal integrates the official `dkaraush/tinyasr` Rust engine pinned at:
-- **Repository**: `https://github.com/dkaraush/tinyasr`
-- **Pinned Commit**: `42d8e11e13653f73c99978521de1c5dd145d0332`
-- **Recognizer Architecture**: Zipformer2 RNN-T / TDT Multilingual (~60M parameters, int4 weights, TZF3/TZF4 format)
-- **Voice Activity Detection**: Silero VAD v5 (16,000 Hz ONNX)
-- **License**: GNU General Public License v3.0 or later (GPL-3.0-or-later)
+<p align="center">
+  <a href="https://github.com/amirrezamortazavifard/VoxaLocal/releases"><img src="https://img.shields.io/github/v/release/amirrezamortazavifard/VoxaLocal?color=06b6d4&style=flat-square" alt="GitHub Release"></a>
+  <img src="https://img.shields.io/badge/Privacy-100%25%20Offline-emerald?style=flat-square" alt="100% Offline">
+  <img src="https://img.shields.io/badge/Tauri-2.0-blue?style=flat-square" alt="Tauri 2.0">
+  <img src="https://img.shields.io/badge/Rust-2021-orange?style=flat-square" alt="Rust 2021">
+  <img src="https://img.shields.io/badge/Engine-TinyASR%20int4-purple?style=flat-square" alt="TinyASR">
+  <img src="https://img.shields.io/badge/VAD-Silero%20v5-cyan?style=flat-square" alt="Silero VAD">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-rose?style=flat-square" alt="License"></a>
+</p>
 
 ---
 
-## Architecture Stack
+## 🌟 Overview / معرفی پروژه
 
-| Layer | Technologies |
+**VoxaLocal** is a production-grade, 100% offline desktop speech-to-text application designed specifically for **Persian (`fa`)** and **English (`en`)**. It faithfully implements the speech recognition pipeline pioneered by Telegram's **TinyASR** engine, executing quantized Zipformer2 transducer neural networks entirely locally on your CPU.
+
+### چرا VoxaLocal؟ (Why VoxaLocal?)
+- **حریم خصوصی ۱۰۰٪ و بدون اینترنت**: پردازش صدا به طور کامل بر روی پردازنده کامپیوتر شما انجام می‌شود. هیچ صدایی به سرورهای ابری، گوگل یا وب‌سرویس‌های خارجی ارسال نمی‌شود.
+- **بازشناسی زنده با انیمیشن روان (Streaming Recognition)**: کلمات بلافاصله با صحبت کردن با کمترین تاخیر زمانی (Sub-Second Latency) بر روی صفحه نمایش ظاهر می‌شوند.
+- **بازگشایی و اصلاح هوشمند جملات ناتمام (Full-Context Re-decoding)**: با پیشرفت جمله، موتور کلمات قبلی را بر اساس زمینه کامل جمله مجدداً رمزگشایی و اصلاح می‌کند (الگوریتم رسمی TinyASR با Beam Search = 4).
+- **تشخیص پایان گفتار و مرز جملات (Silero VAD & EOU)**: تشخیص دقیق سکوت و پایان قطعی عبارات با استفاده از Silero VAD v5 و هد تشخیصی End-of-Turn.
+- **دو زبانه کامل (فارسی و انگلیسی)**: رابط کاربری دو زبانه و توانایی بازشناسی کلمات تخصصی انگلیسی در میان گفتار فارسی.
+- **رونویسی فایل‌های صوتی (File Transcription)**: تبدیل فایل‌های صوتی WAV، MP3، FLAC و M4A به همراه خروجی زیرنویس استاندارد (SRT)، متن ساده (TXT) و فایل زمانی (JSON).
+- **اصلاح هوشمند تایپوگرافی فارسی (Smart ZWNJ)**: رعایت خودکار نیم‌فاصله‌ها و یکسان‌سازی نویسه‌های عربی به فارسی.
+
+---
+
+## 🚀 Key Features / ویژگی‌های کلیدی
+
+| قابلیت | شرح |
 |---|---|
-| **Frontend** | React 18, TypeScript 5, Vite 6, Tailwind CSS 3, Lucide Icons |
-| **Desktop Shell** | Tauri 2.12 |
-| **ASR Inference** | TinyASR (Native Rust, int4 SIMD x86_64 AVX2 / AVX-512 VNNI) |
-| **Audio Capture** | CPAL (WASAPI / DirectSound / ALSA / CoreAudio) |
-| **Resampling** | Rubato 0.16 (High-fidelity polynomial & FFT resampling to 16 kHz) |
-| **Audio File Decoding** | Symphonia 0.5 (Pure Rust decoder for WAV, MP3, FLAC, M4A) |
-| **Persistence** | SQLite (via bundled Rusqlite 0.32) |
+| 🎙️ **استودیو زنده** | ضبط و تایپ صوتی ریل‌تایم با انیمیشن‌های تمایز کلمات (نهایی‌شده، بازگشایی‌شده، و جریان پیش‌نویس). |
+| ⚡ **پردازش چند هسته‌ای SIMD** | بهینه‌سازی شده با دستورالعمل‌های AVX2 و AVX-512 VNNI پردازنده برای کمترین میزان مصرف باتری و CPU. |
+| 🛡️ **تشخیص فعالیت صوتی (VAD)** | ادغام Silero VAD نسخه ۵ با فرکانس ۱۶ کیلوهرتز برای حذف نویز پس‌زمینه و سکوت. |
+| 📁 **رونویسی فایل‌های طولانی** | رونویسی سریع‌تر از زمان واقعی (Faster-than-realtime) فایل‌های پادکست، مصاحبه و جلسات صوتی. |
+| ⏱️ **برچسب زمانی کلمات** | محاسبه دقیق زمان شروع و پایان هر تک کلمه با دقت هزارم ثانیه و تولید فایل SRT. |
+| 💾 **تاریخچه محلی (SQLite)** | ذخیره ایمن تمامی رونویسی‌ها در پایگاه داده داخلی با امکان جستجو و بازیابی. |
+| 🌐 **رابط کاربری مدرن** | طراحی Glassmorphic سرمه‌ای چشم‌نواز با پشتیبانی کامل از چینش راست‌به‌چپ (RTL) و چپ‌به‌راست (LTR). |
 
 ---
 
-## Quick Start & Installation
+## 🏗️ System Architecture / معماری فنی
 
-### Option 1: Run the Pre-built Release
-The release build generates ready-to-run installers in `src-tauri/target/release/bundle/`:
-- **MSI Installer**: `VoxLocal_0.1.0_x64_en-US.msi`
-- **NSIS Setup**: `VoxLocal_0.1.0_x64-setup.exe`
-- **Portable Executable**: `voxlocal.exe`
+VoxaLocal uses an asynchronous, thread-isolated architecture guaranteeing zero audio dropouts:
 
-### Option 2: Build From Source
+```mermaid
+flowchart TD
+    subgraph Audio_Layer [Audio Capture & DSP]
+        MIC[Microphone / CPAL] -->|Audio Chunks| MIX[Mono Downmix]
+        MIX -->|44.1k / 48k| RES[Rubato 0.16 Resampler]
+        RES -->|16 kHz Mono Float32| RING[Bounded Audio Channel]
+    end
 
-#### Prerequisites
-1. **Rust**: 1.80+ (tested with Rust 1.96.1 x86_64-pc-windows-msvc)
-2. **Node.js**: v20+ or v24+
-3. **C++ Build Tools**: Visual Studio Build Tools with Windows 10/11 SDK
+    subgraph ASR_Layer [Native Rust ASR Engine]
+        RING --> SESS[TinyASR Session Worker]
+        MODELS[(Zipformer2 & Silero VAD)] -.-> SESS
+        SESS -->|Streaming Pass| STREAM[Frame Hypothesis]
+        SESS -->|Silence / EOU| REDEC[Full-Context Re-decode]
+        STREAM --> DISPATCH[Event Dispatcher]
+        REDEC --> DISPATCH
+    end
 
-#### Build Steps
+    subgraph IPC_Layer [Tauri IPC Channels]
+        DISPATCH -->|asr://partial| UI[React 18 Frontend]
+        DISPATCH -->|asr://commit| UI
+        DISPATCH -->|audio://level| UI
+        DISPATCH -->|asr://eou| UI
+    end
+
+    subgraph Storage [Persistence]
+        UI -->|Save Transcript| DB[(SQLite voxlocal.db)]
+    end
+```
+
+---
+
+## 📦 Pinned Model & Engine Specifications
+
+- **ASR Engine**: Vendored Rust implementation of `dkaraush/tinyasr` (Commit: `42d8e11e13653f73c99978521de1c5dd145d0332`).
+- **ASR Model**: `en-fa.tzf` (Multilingual Persian-English Zipformer2 transducer, ~28.7 MiB compressed, ~60M parameters, int4 SIMD quantization).
+- **VAD Model**: `silero_vad.onnx` (Silero VAD v5, 16 kHz mono).
+- **Decoding Options**: Default Beam Width = 4, CPU multithreading (auto-allocated based on logical core count).
+
+---
+
+## 💻 Download & Installation / راهنمای نصب و اجرا
+
+### ۱. استفاده از فایل نصبی آماده (Recommended)
+از بخش [GitHub Releases](https://github.com/amirrezamortazavifard/VoxaLocal/releases) آخرین نسخه نرم‌افزار را دانلود کنید:
+- **نصب‌کننده ویندوز (Setup.exe)**: `VoxLocal_0.1.0_x64-setup.exe`
+- **نصب‌کننده سازمانی (MSI)**: `VoxLocal_0.1.0_x64_en-US.msi`
+- **نسخه پرتابل بدون نیاز به نصب**: `voxlocal.exe`
+
+### ۲. بیلد و توسعه از سورس‌کد (Building from Source)
+
+#### پیش‌نیازها:
+- **Rust**: نسخه ۱.۸۰ یا بالاتر (`rustup default stable`)
+- **Node.js**: نسخه ۲۰ یا ۲۴ به همراه npm
+- **C++ Build Tools**: ویژوال استودیو با Windows 10/11 SDK (برای ویندوز)
+
+#### مراحل اجرا:
 ```bash
-# 1. Install frontend dependencies
+# ۱. کلون کردن ریپازیتوری
+git clone https://github.com/amirrezamortazavifard/VoxaLocal.git
+cd VoxaLocal
+
+# ۲. نصب وابستگی‌های فرانت‌اند
 npm install
 
-# 2. Verify and test the Rust backend
+# ۳. اجرای آزمون‌های بک‌اند و اطمینان از سلامت پروژه
 cargo test --manifest-path src-tauri/Cargo.toml
 
-# 3. Run development mode
+# ۴. اجرای محیط توسعه زنده
 npm run tauri dev
 
-# 4. Compile release binaries and installers
+# ۵. بیلد پکیج نهایی Release
 npm run tauri build
 ```
 
 ---
 
-## Model Import Instructions
+## 🧠 Model Setup Guide / راهنمای نصب مدل‌ها
 
-1. Launch VoxLocal and navigate to the **مدیریت مدل‌ها (Model Manager)** tab.
-2. If running in the development workspace, click **«نصب خودکار مدل‌های داخلی پروژه»** to automatically load the verified models from `vendor/tinyasr/models/`.
-3. To import custom or updated models:
-   - Select the ASR model: `en-fa.tzf` or `en-fa.tzf.gz` (Persian-English recognizer).
-   - Select the VAD model: `silero_vad.onnx` or `silero_vad.onnx.gz`.
-   - Click **«بررسی و نصب مدل‌های انتخابی»**.
-4. Click **«بارگذاری مدل در حافظه RAM»**. When the badge displays **«مدل بارگذاری شد»**, you are ready to transcribe!
-
-See [MODEL_INSTALLATION.md](MODEL_INSTALLATION.md) for full details.
+1. نرم‌افزار **VoxaLocal** را باز کرده و به تب **«مدیریت مدل‌ها» (Model Manager)** بروید.
+2. چنانچه پروژه را در محیط توسعه اجرا می‌کنید، دکمه **«نصب خودکار مدل‌های داخلی پروژه»** را کلیک کنید تا مدل‌های تست موجود در `vendor/tinyasr/models/` بارگذاری شوند.
+3. برای وارد کردن دستی مدل‌ها:
+   - فایل مدل تشخیص گفتار: `en-fa.tzf` یا `en-fa.tzf.gz`
+   - فایل مدل تشخیص صوت: `silero_vad.onnx` یا `silero_vad.onnx.gz`
+   - دکمه **«بررسی و نصب مدل‌های انتخابی»** را بزنید.
+4. سپس روی **«بارگذاری مدل در حافظه RAM»** کلیک کنید. پس از سبز شدن نشانگر، برنامه آماده تبدیل صدا به متن است!
 
 ---
 
-## Documentation
-
-- [ARCHITECTURE.md](ARCHITECTURE.md): Detailed multi-threaded architecture and data flow.
-- [TINYASR_INTEGRATION.md](TINYASR_INTEGRATION.md): Deep dive into TinyASR algorithms, sessions, and re-decoding.
-- [MODEL_INSTALLATION.md](MODEL_INSTALLATION.md): Model formats, validation, and manual asset setup.
-- [OFFLINE_ARCHITECTURE.md](OFFLINE_ARCHITECTURE.md): Privacy verification, network isolation, and audit report.
-- [TESTING.md](TESTING.md): Test suite, benchmarks, and accuracy evaluation.
-- [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md): Step-by-step compilation, packaging, and platform portability.
-- [LICENSE_NOTICES.md](LICENSE_NOTICES.md): GPL-3.0-or-later, MIT, and CC BY 3.0 license notices.
+## 🏷️ GitHub Topics & Tags
+`speech-recognition` • `speech-to-text` • `asr` • `persian` • `farsi` • `tinyasr` • `zipformer` • `silero-vad` • `tauri` • `rust` • `react` • `offline` • `privacy-first` • `desktop-app` • `voice-recognition` • `transcription`
 
 ---
 
-## License
+## 📄 License & Attribution
 
-VoxLocal and its bundled TinyASR engine are licensed under the **GNU General Public License v3.0 or later** ([GPL-3.0-or-later](LICENSE_NOTICES.md)).
+- **VoxaLocal** is licensed under the **GNU General Public License v3.0 or later ([GPL-3.0-or-later](LICENSE))**.
+- **TinyASR**: (c) Dmitry Karaush, licensed under GPL-3.0.
+- **Silero VAD**: (c) Silero Team, licensed under MIT License.
+- Full notices and dataset attributions are listed in [LICENSE_NOTICES.md](LICENSE_NOTICES.md).
