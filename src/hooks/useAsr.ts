@@ -14,6 +14,7 @@ import {
   WordItem,
 } from '../types/asr';
 import { trackProvisionalWords, pruneExpiredVisualStates } from '../utils/wordDiffTracker';
+import { mergeCommittedWords, filterUncommittedWords } from '../utils/wordDeduplication';
 
 export function useAsr() {
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
@@ -123,13 +124,16 @@ export function useAsr() {
           setCurrentSessionId(event.payload.sessionId);
         }
 
-        const open = event.payload.open || [];
-        const tail = event.payload.tail || [];
-        setOpenWords(open);
-        setTailWords(tail);
+        const rawOpen = event.payload.open || [];
+        const rawTail = event.payload.tail || [];
+        const cleanOpen = filterUncommittedWords(rawOpen, committedWordsRef.current);
+        const cleanTail = filterUncommittedWords(rawTail, committedWordsRef.current, cleanOpen);
+
+        setOpenWords(cleanOpen);
+        setTailWords(cleanTail);
 
         setTrackedProvisionalWords((prev) =>
-          trackProvisionalWords(prev, open, tail, committedWordsRef.current)
+          trackProvisionalWords(prev, cleanOpen, cleanTail, committedWordsRef.current)
         );
       });
       cleanups.push(uPartial);
@@ -144,7 +148,7 @@ export function useAsr() {
 
         if (event.payload.words && event.payload.words.length > 0) {
           setCommittedWords((prev) => {
-            const merged = [...prev, ...event.payload.words];
+            const merged = mergeCommittedWords(prev, event.payload.words);
             committedWordsRef.current = merged;
             return merged;
           });

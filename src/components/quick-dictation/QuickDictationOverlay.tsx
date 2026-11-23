@@ -19,6 +19,11 @@ import {
 } from '../../types/asr';
 import { wordsToPlainString } from '../../utils/exportFormats';
 import { formatPersianTranscript } from '../../utils/persianTypography';
+import {
+  mergeCommittedWords,
+  filterUncommittedWords,
+  deduplicateConsecutiveSentences,
+} from '../../utils/wordDeduplication';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 export const QuickDictationOverlay: React.FC = () => {
@@ -157,19 +162,25 @@ export const QuickDictationOverlay: React.FC = () => {
 
       // 3. Partial streaming words (real-time live streaming)
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
-        const open = event.payload.open || [];
-        const tail = event.payload.tail || [];
-        setOpenWords(open);
-        openWordsRef.current = open;
-        setTailWords(tail);
-        tailWordsRef.current = tail;
+        const rawOpen = event.payload.open || [];
+        const rawTail = event.payload.tail || [];
+
+        // Deduplicate open and tail against committed words
+        const cleanOpen = filterUncommittedWords(rawOpen, committedWordsRef.current);
+        const cleanTail = filterUncommittedWords(rawTail, committedWordsRef.current, cleanOpen);
+
+        setOpenWords(cleanOpen);
+        openWordsRef.current = cleanOpen;
+        setTailWords(cleanTail);
+        tailWordsRef.current = cleanTail;
 
         // If user hasn't manually edited text, update live transcription
         if (!isUserEditingRef.current) {
-          const all = [...committedWordsRef.current, ...open, ...tail];
+          const all = [...committedWordsRef.current, ...cleanOpen, ...cleanTail];
           const raw = wordsToPlainString(all);
           const formatted = formatPersianTranscript(raw);
-          setTranscriptText(formatted);
+          const cleanFormatted = deduplicateConsecutiveSentences(formatted);
+          setTranscriptText(cleanFormatted);
         }
       });
       unlistens.push(uPartial);
@@ -177,18 +188,24 @@ export const QuickDictationOverlay: React.FC = () => {
       // 4. Commit finalized words
       const uCommit = await listen<CommitEventPayload>('asr://commit', (event) => {
         if (event.payload.words && event.payload.words.length > 0) {
-          const merged = [...committedWordsRef.current, ...event.payload.words];
+          const merged = mergeCommittedWords(committedWordsRef.current, event.payload.words);
           committedWordsRef.current = merged;
           setCommittedWords(merged);
-          setOpenWords([]);
-          openWordsRef.current = [];
-          setTailWords([]);
-          tailWordsRef.current = [];
+
+          // Clean up provisional words that are now committed
+          const cleanOpen = filterUncommittedWords(openWordsRef.current, merged);
+          const cleanTail = filterUncommittedWords(tailWordsRef.current, merged, cleanOpen);
+          setOpenWords(cleanOpen);
+          openWordsRef.current = cleanOpen;
+          setTailWords(cleanTail);
+          tailWordsRef.current = cleanTail;
 
           if (!isUserEditingRef.current) {
-            const raw = wordsToPlainString(merged);
+            const all = [...merged, ...cleanOpen, ...cleanTail];
+            const raw = wordsToPlainString(all);
             const formatted = formatPersianTranscript(raw);
-            setTranscriptText(formatted);
+            const cleanFormatted = deduplicateConsecutiveSentences(formatted);
+            setTranscriptText(cleanFormatted);
           }
         }
       });
@@ -201,13 +218,16 @@ export const QuickDictationOverlay: React.FC = () => {
 
         let finalFormatted = '';
         if (!isUserEditingRef.current) {
+          const cleanOpen = filterUncommittedWords(openWordsRef.current, committedWordsRef.current);
+          const cleanTail = filterUncommittedWords(tailWordsRef.current, committedWordsRef.current, cleanOpen);
           const all = [
             ...committedWordsRef.current,
-            ...openWordsRef.current,
-            ...tailWordsRef.current,
+            ...cleanOpen,
+            ...cleanTail,
           ];
           const raw = wordsToPlainString(all);
-          finalFormatted = formatPersianTranscript(raw);
+          const formatted = formatPersianTranscript(raw);
+          finalFormatted = deduplicateConsecutiveSentences(formatted);
           setTranscriptText(finalFormatted);
         }
 
