@@ -64,7 +64,7 @@ export const QuickDictationOverlay: React.FC = () => {
     committedWordsRef.current = committedWords;
   }, [committedWords]);
 
-  // Load Quick Dictation settings and ensure backend recording session is active
+  // Load Quick Dictation settings; DO NOT auto-start on mount (modal must ONLY open via shortcut)
   useEffect(() => {
     invoke<QuickDictationSettings>('get_quick_dictation_settings')
       .then((s) => setSettings(s))
@@ -76,8 +76,8 @@ export const QuickDictationOverlay: React.FC = () => {
       .then((st) => {
         if (st === 'recording') {
           setOverlayState('recording');
-        } else if (st === 'idle' || st === 'cancelled' || st === 'error') {
-          invoke('start_quick_dictation_session').catch(console.error);
+        } else if (st === 'idle' || st === 'cancelled') {
+          setOverlayState('recording'); // Default view when triggered
         }
       })
       .catch(console.error);
@@ -327,10 +327,10 @@ export const QuickDictationOverlay: React.FC = () => {
 
   return (
     <div className="w-screen h-screen p-2 select-none overflow-hidden flex items-center justify-center bg-transparent">
-      {/* Sleek Floating Pill Container */}
-      <div className="w-full max-w-[540px] h-[175px] bg-[#16171a]/98 border border-white/10 rounded-[26px] backdrop-blur-2xl shadow-2xl flex flex-col justify-between p-3.5 relative overflow-hidden text-slate-100 font-sans">
+      {/* Sleek Floating Pill Container - 100% Solid Opaque Background (Zero Bleed-through) */}
+      <div className="w-full max-w-[540px] h-[175px] bg-[#1a1b1e] border border-slate-700/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] flex flex-col justify-between p-3.5 relative overflow-hidden text-slate-100 font-sans">
         {/* Subtle top inner light highlight */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent pointer-events-none" />
 
         {/* ================= STATE 1: RECORDING / LIVE WORD-BY-WORD STREAM ================= */}
         {overlayState === 'recording' && (

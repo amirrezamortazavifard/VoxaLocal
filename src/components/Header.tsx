@@ -64,11 +64,10 @@ export const Header: React.FC<HeaderProps> = ({
       <nav className="flex items-center bg-navy-950/80 p-1 rounded-xl border border-slate-800/80 shadow-inner">
         <button
           onClick={() => setActiveTab('studio')}
-          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            activeTab === 'studio'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-          }`}
+          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'studio'
+            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
         >
           <Mic className="w-3.5 h-3.5" />
           <span>{t('tabStudio')}</span>
@@ -76,11 +75,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={() => setActiveTab('file')}
-          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            activeTab === 'file'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-          }`}
+          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'file'
+            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
         >
           <FileAudio className="w-3.5 h-3.5" />
           <span>{t('tabFile')}</span>
@@ -88,11 +86,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            activeTab === 'history'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-          }`}
+          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'history'
+            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
         >
           <History className="w-3.5 h-3.5" />
           <span>{t('tabHistory')}</span>
@@ -100,11 +97,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={() => setActiveTab('models')}
-          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            activeTab === 'models'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-          }`}
+          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'models'
+            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
         >
           <Cpu className="w-3.5 h-3.5" />
           <span>{t('tabModels')}</span>
@@ -112,11 +108,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            activeTab === 'settings'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-          }`}
+          className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'settings'
+            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
         >
           <Settings className="w-3.5 h-3.5" />
           <span>{t('tabSettings')}</span>
@@ -132,33 +127,30 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <button
             onClick={() => onLanguageChange('fa')}
-            className={`px-2 py-0.5 rounded transition-colors ${
-              settings.languageMode === 'fa'
-                ? 'bg-cyan-500/20 text-cyan-300 font-bold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            className={`px-2 py-0.5 rounded transition-colors ${settings.languageMode === 'fa'
+              ? 'bg-cyan-500/20 text-cyan-300 font-bold'
+              : 'text-slate-400 hover:text-slate-200'
+              }`}
             title="Persian recognition"
           >
             FA
           </button>
           <button
             onClick={() => onLanguageChange('en')}
-            className={`px-2 py-0.5 rounded transition-colors ${
-              settings.languageMode === 'en'
-                ? 'bg-cyan-500/20 text-cyan-300 font-bold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            className={`px-2 py-0.5 rounded transition-colors ${settings.languageMode === 'en'
+              ? 'bg-cyan-500/20 text-cyan-300 font-bold'
+              : 'text-slate-400 hover:text-slate-200'
+              }`}
             title="English recognition"
           >
             EN
           </button>
           <button
             onClick={() => onLanguageChange('fa,en')}
-            className={`px-2 py-0.5 rounded transition-colors ${
-              settings.languageMode === 'fa,en'
-                ? 'bg-cyan-500/20 text-cyan-300 font-bold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            className={`px-2 py-0.5 rounded transition-colors ${settings.languageMode === 'fa,en'
+              ? 'bg-cyan-500/20 text-cyan-300 font-bold'
+              : 'text-slate-400 hover:text-slate-200'
+              }`}
             title="Auto Persian + English recognition"
           >
             FA+EN
