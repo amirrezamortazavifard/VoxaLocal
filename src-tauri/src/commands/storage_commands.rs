@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tauri::State;
-use crate::storage::{HistoryRepository, TranscriptRecord};
+use crate::storage::{HistoryRepository, SettingsRepository, TranscriptRecord};
 
 #[tauri::command]
 pub fn get_history(history_repo: State<'_, Arc<HistoryRepository>>) -> Result<Vec<TranscriptRecord>, String> {
@@ -26,4 +26,21 @@ pub fn delete_history_item(
 #[tauri::command]
 pub fn clear_history(history_repo: State<'_, Arc<HistoryRepository>>) -> Result<(), String> {
     history_repo.clear()
+}
+
+#[tauri::command]
+pub fn get_app_setting(
+    key: String,
+    settings_repo: State<'_, Arc<SettingsRepository>>,
+) -> Result<Option<String>, String> {
+    settings_repo.get(&key)
+}
+
+#[tauri::command]
+pub fn set_app_setting(
+    key: String,
+    value: String,
+    settings_repo: State<'_, Arc<SettingsRepository>>,
+) -> Result<(), String> {
+    settings_repo.set(&key, &value)
 }

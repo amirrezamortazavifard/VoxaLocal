@@ -12,6 +12,31 @@ export const translations = {
     modelNotInstalled: 'مدل نصب نیست',
 
     // Navigation Tabs
+    tabHome: 'خانه / داشبورد',
+    groupCustomize: 'شخصی‌سازی',
+    tabDictionary: 'واژگان اختصاصی',
+    tabFormattingRules: 'قواعد نگارش و علائم',
+    tabLlmConnection: 'اتصال هوش مصنوعی (LLM)',
+    tabVoiceMode: 'حالت ضبط صدا',
+    groupSettings: 'تنظیمات',
+    tabShortcuts: 'کلیدهای میانبر',
+    tabSystem: 'سیستم و مدل‌ها',
+    tabImportExport: 'ورود / خروج داده',
+    tabFileTranscription: 'رونویسی فایل صوتی',
+    tabFullHistory: 'تمام تاریخچه',
+    tabAbout: 'درباره نرم‌افزار',
+
+    // Dashboard
+    murmureHeroSubtitle: 'VoxaLocal از میکروفون پیش‌فرض سیستم برای دریافت صدای شما استفاده می‌کند.',
+    audioInputTitle: 'ورودی صدا (Entrée audio)',
+    recentActivityTitle: 'فعالیت‌های اخیر',
+    viewAllHistory: 'مشاهده تمام تاریخچه رونویسی‌ها',
+    autoCloseTimeoutLabel: 'بستن خودکار کپسول پس از پایان دیکته',
+    saveSettings: 'ذخیره تنظیمات',
+    releaseNotes: 'یادداشت‌های نسخه',
+    reportBug: 'گزارش اشکال',
+    checkUpdates: 'بررسی بروزرسانی',
+
     tabStudio: 'استودیو ضبط زنده',
     tabFile: 'رونویسی فایل صوتی',
     tabHistory: 'تاریخچه',
@@ -187,6 +212,31 @@ export const translations = {
     modelNotInstalled: 'Model Not Installed',
 
     // Navigation Tabs
+    tabHome: 'Home',
+    groupCustomize: 'Customize',
+    tabDictionary: 'Dictionary',
+    tabFormattingRules: 'Formatting Rules',
+    tabLlmConnection: 'LLM Integration',
+    tabVoiceMode: 'Voice Mode',
+    groupSettings: 'Settings',
+    tabShortcuts: 'Shortcuts',
+    tabSystem: 'System & Models',
+    tabImportExport: 'Import / Export',
+    tabFileTranscription: 'File Transcription',
+    tabFullHistory: 'Full History',
+    tabAbout: 'About',
+
+    // Dashboard
+    murmureHeroSubtitle: 'VoxaLocal uses the system default microphone to record your voice.',
+    audioInputTitle: 'Audio Input (Entrée audio)',
+    recentActivityTitle: 'Recent Activity',
+    viewAllHistory: 'View all transcripts in History',
+    autoCloseTimeoutLabel: 'Auto-dismiss overlay after finished speech',
+    saveSettings: 'Save Settings',
+    releaseNotes: 'Release Notes',
+    reportBug: 'Report a Bug',
+    checkUpdates: 'Check for Updates',
+
     tabStudio: 'Live Studio',
     tabFile: 'File Transcription',
     tabHistory: 'History',

@@ -61,6 +61,20 @@ impl ShortcutManager {
         self.state_machine.read().state()
     }
 
+    pub fn trigger_start(&self, app: &AppHandle) {
+        let should_start = self.state_machine.write().on_press();
+        if should_start {
+            self.start_quick_dictation(app);
+        }
+    }
+
+    pub fn trigger_stop(&self, app: &AppHandle) {
+        let should_stop = self.state_machine.write().on_release();
+        if should_stop {
+            self.stop_quick_dictation(app);
+        }
+    }
+
     pub fn update_settings(&self, app: &AppHandle, new_settings: QuickDictationSettings) -> Result<(), String> {
         let old_shortcut = self.settings.read().shortcut.clone();
         let old_enabled = self.settings.read().enabled;

@@ -72,3 +72,21 @@ pub fn get_quick_dictation_state(
 ) -> Result<PttState, String> {
     Ok(shortcut_mgr.state())
 }
+
+#[tauri::command]
+pub fn start_quick_dictation_session(
+    app: AppHandle,
+    shortcut_mgr: State<'_, Arc<ShortcutManager>>,
+) -> Result<(), String> {
+    shortcut_mgr.trigger_start(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_quick_dictation_session(
+    app: AppHandle,
+    shortcut_mgr: State<'_, Arc<ShortcutManager>>,
+) -> Result<(), String> {
+    shortcut_mgr.trigger_stop(&app);
+    Ok(())
+}

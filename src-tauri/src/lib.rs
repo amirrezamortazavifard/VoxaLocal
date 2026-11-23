@@ -128,6 +128,10 @@ pub fn run() {
             dismiss_quick_dictation,
             open_in_studio,
             get_quick_dictation_state,
+            start_quick_dictation_session,
+            stop_quick_dictation_session,
+            get_app_setting,
+            set_app_setting,
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoxLocal application");
