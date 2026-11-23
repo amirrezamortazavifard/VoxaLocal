@@ -205,9 +205,9 @@ impl ShortcutManager {
             return;
         }
 
-        // 6. Position and show floating overlay WITHOUT activating it (preserves target focus)
-        OverlayManager::center_on_active_monitor(app);
-        let _ = OverlayManager::show(app, true);
+        // 6. Modal overlay temporarily kept hidden as requested by user to focus on main window real-time ASR
+        // OverlayManager::center_on_active_monitor(app);
+        // let _ = OverlayManager::show(app, true);
 
         // 7. Notify state machine and UI
         let immediate_stop = self.state_machine.write().on_started();
@@ -242,8 +242,8 @@ impl ShortcutManager {
 
         self.state_machine.write().on_finalized();
 
-        // Overlay becomes interactive for result review
-        let _ = OverlayManager::show(app, false);
+        // Overlay temporarily kept hidden as requested by user
+        // let _ = OverlayManager::show(app, false);
         let _ = app.emit("quick-dictation://finalized", ());
     }
 

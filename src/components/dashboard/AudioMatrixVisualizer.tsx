@@ -1,24 +1,37 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { AudioLevelPayload } from '../../types/asr';
 
 interface AudioMatrixVisualizerProps {
   level: AudioLevelPayload;
   isTesting?: boolean;
+  isRecording?: boolean;
 }
 
 export const AudioMatrixVisualizer: React.FC<AudioMatrixVisualizerProps> = ({
   level,
   isTesting = false,
+  isRecording = false,
 }) => {
   const columnsCount = 34;
   const rowsCount = 14;
+  const [tick, setTick] = useState(0);
 
-  // Calculate normalized volume (0.0 to 1.0)
-  const rms = isTesting ? Math.max(level.rms, 0.25) : level.rms;
-  const clampedDb = Math.max(-60, Math.min(0, level.db));
-  const normalizedLevel = level.isSpeech || isTesting
-    ? Math.min(1.0, Math.max(0.15, (clampedDb + 60) / 60 + rms * 0.5))
-    : 0.08;
+  // Animation ticker for fluid waves when audio is active or testing/recording
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((prev) => (prev + 1) % 10000);
+    }, 40);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate normalized volume with logarithmic dB + linear RMS
+  const dbNorm = Math.max(0, Math.min(1.0, (level.db + 58.0) / 45.0));
+  const rmsNorm = Math.min(1.0, level.rms * 35.0);
+  const speechEnergy = isTesting ? 0.65 : Math.max(dbNorm, rmsNorm);
+  const isSpeech = level.isSpeech || speechEnergy > 0.08 || level.rms > 0.0025 || isTesting;
+  const normalizedLevel = isSpeech
+    ? Math.min(1.0, Math.max(0.18, speechEnergy))
+    : (isRecording ? 0.1 : 0.05);
 
   // Precompute column peak heights for diamond/hexagon profile
   const columnMaxHeights = useMemo(() => {
@@ -38,12 +51,12 @@ export const AudioMatrixVisualizer: React.FC<AudioMatrixVisualizerProps> = ({
         dir="ltr"
       >
         {columnMaxHeights.map((maxRowsForCol, colIdx) => {
-          // Dynamic height variation across columns with sine jitter
-          const dynamicRatio = Math.min(
-            1.0,
-            normalizedLevel * (0.8 + 0.35 * Math.sin(colIdx * 0.5 + Date.now() / 300))
-          );
-          const activeRows = Math.round(maxRowsForCol * dynamicRatio);
+          // Dynamic height variation across columns with sine waves
+          const wavePhase = Math.sin(colIdx * 0.45 + tick * 0.25) * 0.35 + 0.65;
+          const dynamicRatio = isSpeech
+            ? Math.min(1.0, normalizedLevel * wavePhase)
+            : Math.max(0.06, (Math.sin(colIdx * 0.3 + tick * 0.08) * 0.03 + 0.07));
+          const activeRows = Math.max(1, Math.round(maxRowsForCol * dynamicRatio));
 
           return (
             <div

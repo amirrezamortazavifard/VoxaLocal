@@ -144,7 +144,7 @@ export function useAsr() {
 
         if (event.payload.words && event.payload.words.length > 0) {
           setCommittedWords((prev) => {
-            const merged = mergeCommittedWords(prev, event.payload.words);
+            const merged = [...prev, ...event.payload.words];
             committedWordsRef.current = merged;
             return merged;
           });
@@ -344,48 +344,4 @@ export function useAsr() {
 
 function logListenersReady() {
   console.log('[VoxaLocal ASR] IPC event listeners registered and ready for streaming.');
-}
-
-/**
- * Merges newly committed words into the existing committed transcript,
- * ensuring no duplicate words or repeated sentences are appended.
- */
-function mergeCommittedWords(existing: WordItem[], incoming: WordItem[]): WordItem[] {
-  if (!incoming || incoming.length === 0) return existing;
-  if (!existing || existing.length === 0) return incoming;
-
-  // Check if incoming is an exact duplicate of the tail of existing words
-  const incomingTexts = incoming.map((w) => w.text.trim()).join(' ');
-  const existingTexts = existing.map((w) => w.text.trim()).join(' ');
-
-  if (existingTexts.endsWith(incomingTexts)) {
-    const lastExisting = existing[existing.length - 1];
-    const lastIncoming = incoming[incoming.length - 1];
-    if (Math.abs(lastExisting.end - lastIncoming.end) < 0.25) {
-      return existing;
-    }
-  }
-
-  // Filter individual incoming words that already exist in the committed transcript
-  const filteredIncoming = incoming.filter((newWord) => {
-    return !existing.some((existingWord) => {
-      // 1. Same timestamps within small jitter tolerance
-      const isSameTime =
-        Math.abs(existingWord.start - newWord.start) < 0.12 &&
-        Math.abs(existingWord.end - newWord.end) < 0.12;
-
-      // 2. Same text within the same time window
-      const isSameTextAndApproxTime =
-        existingWord.text.trim() === newWord.text.trim() &&
-        Math.abs(existingWord.start - newWord.start) < 0.35;
-
-      return isSameTime || isSameTextAndApproxTime;
-    });
-  });
-
-  if (filteredIncoming.length === 0) {
-    return existing;
-  }
-
-  return [...existing, ...filteredIncoming];
 }

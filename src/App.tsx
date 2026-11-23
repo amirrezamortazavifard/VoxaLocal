@@ -26,10 +26,17 @@ const MainApp: React.FC = () => {
   const {
     modelInfo,
     settings,
+    status,
     activeLanguage,
     audioLevel,
     recordingDuration,
+    committedWords,
+    openWords,
+    tailWords,
     allCurrentWords,
+    startRecording,
+    stopRecording,
+    clearTranscript,
     loadModels,
     unloadModels,
     refreshModelStatus,
@@ -104,6 +111,17 @@ const MainApp: React.FC = () => {
             audioLevel={audioLevel}
             quickDictationSettings={qdSettings}
             onOpenHistoryTab={() => setActiveTab('full_history')}
+            status={status}
+            recordingDuration={recordingDuration}
+            committedWords={committedWords}
+            openWords={openWords}
+            tailWords={tailWords}
+            allCurrentWords={allCurrentWords}
+            startRecording={startRecording}
+            stopRecording={stopRecording}
+            clearTranscript={clearTranscript}
+            activeLanguage={activeLanguage}
+            onSaveToHistory={handleSaveToHistory}
           />
         )}
 
