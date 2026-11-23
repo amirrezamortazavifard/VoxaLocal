@@ -25,7 +25,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 export const QuickDictationOverlay: React.FC = () => {
   const { t, language } = useLanguage();
 
-  const [overlayState, setOverlayState] = useState<'recording' | 'result' | 'pasted' | 'error'>('recording');
+  const [overlayState, setOverlayState] = useState<'idle' | 'recording' | 'result' | 'pasted' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState<AudioLevelPayload>({
     rms: 0,
@@ -45,8 +45,8 @@ export const QuickDictationOverlay: React.FC = () => {
 
   const [settings, setSettings] = useState<QuickDictationSettings>({
     enabled: true,
-    shortcut: 'Ctrl+Shift+Space',
-    mode: 'pushToTalk',
+    shortcut: 'Ctrl+Shift+B',
+    mode: 'toggle',
     autoPaste: true,
     timeoutSeconds: 15,
     showWaveform: true,
@@ -73,7 +73,7 @@ export const QuickDictationOverlay: React.FC = () => {
     tailWordsRef.current = tailWords;
   }, [tailWords]);
 
-  // Load Quick Dictation settings; DO NOT auto-start on mount (modal must ONLY open via shortcut)
+  // Load Quick Dictation settings
   useEffect(() => {
     invoke<QuickDictationSettings>('get_quick_dictation_settings')
       .then((s) => setSettings(s))
@@ -85,8 +85,9 @@ export const QuickDictationOverlay: React.FC = () => {
       .then((st) => {
         if (st === 'recording') {
           setOverlayState('recording');
-        } else if (st === 'idle' || st === 'cancelled') {
-          setOverlayState('recording'); // Default view when triggered
+          if (!startTimeRef.current) startTimeRef.current = Date.now();
+        } else {
+          setOverlayState('idle');
         }
       })
       .catch(console.error);
@@ -351,21 +352,25 @@ export const QuickDictationOverlay: React.FC = () => {
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent pointer-events-none" />
 
         {/* ================= STATE 1: RECORDING / LIVE WORD-BY-WORD STREAM ================= */}
-        {overlayState === 'recording' && (
+        {(overlayState === 'recording' || overlayState === 'idle') && (
           <div className="flex flex-col h-full justify-between">
             {/* Top Header Bar: Status, Duration & Close Button (X) */}
             <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08] text-xs">
               {/* Left: Recording Pulse & Status */}
               <div className="flex items-center space-x-2 space-x-reverse">
                 <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                  {overlayState === 'recording' && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  )}
+                  <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${overlayState === 'recording' ? 'bg-rose-500' : 'bg-cyan-400'}`}></span>
                 </span>
                 <span className="text-cyan-300 font-bold text-xs tracking-wide">
-                  {language === 'fa' ? 'در حال شنیدن و بازشناسی زنده...' : 'Listening & transcribing live...'}
+                  {overlayState === 'recording'
+                    ? (language === 'fa' ? 'در حال شنیدن و بازشناسی زنده...' : 'Listening & transcribing live...')
+                    : (language === 'fa' ? 'دیکته صوتی آماده است...' : 'Quick Dictation Ready...')}
                 </span>
                 <span className="font-mono text-slate-400 text-[11px]" dir="ltr">
-                  ({formatDuration(recordingSeconds)})
+                  ({formatDuration(overlayState === 'recording' ? recordingSeconds : 0)})
                 </span>
               </div>
 
@@ -435,19 +440,25 @@ export const QuickDictationOverlay: React.FC = () => {
             {/* Bottom Bar: Soundwave Equalizer & Action Buttons */}
             <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.08] text-xs">
               {/* Dynamic Soundwave Equalizer */}
-              <div className="flex items-center gap-[3px] h-6 px-1" dir="ltr">
+              <div className="flex items-center gap-[3px] h-7 px-1" dir="ltr">
                 {bars.map((_, i) => {
                   const normDist = Math.abs(i - 17.5) / 18.0;
-                  const envelope = Math.pow(Math.cos(normDist * Math.PI * 0.48), 1.2);
+                  const envelope = Math.pow(Math.cos(normDist * Math.PI * 0.48), 1.1);
+
+                  // Normalized audio energy from dB and RMS (sensitive to any mic)
+                  const dbEnergy = Math.max(0, Math.min(1, (audioLevel.db + 58.0) / 45.0));
+                  const rmsEnergy = Math.min(1, audioLevel.rms * 35.0);
+                  const speechEnergy = Math.max(dbEnergy, rmsEnergy);
+                  const isAudioActive = audioLevel.isSpeech || speechEnergy > 0.08 || audioLevel.rms > 0.0025 || audioLevel.db > -55.0;
 
                   let barHeightPercent: number;
-                  if (audioLevel.isSpeech || audioLevel.rms > 0.015) {
-                    const wavePhase = Math.sin(i * 0.45 + waveTick * 0.3) * 0.3 + 0.7;
-                    const dynamicGain = Math.min(100, (audioLevel.rms * 380) * envelope * wavePhase);
-                    barHeightPercent = Math.max(14, Math.min(95, Math.round(16 + dynamicGain)));
+                  if (isAudioActive) {
+                    const wavePhase = Math.sin(i * 0.5 + waveTick * 0.35) * 0.35 + 0.65;
+                    const dynamicGain = Math.min(85, speechEnergy * 90 * envelope * wavePhase);
+                    barHeightPercent = Math.max(14, Math.min(95, Math.round(14 + dynamicGain)));
                   } else {
-                    const idlePhase = Math.sin(i * 0.35 + waveTick * 0.15) * 4;
-                    barHeightPercent = Math.max(10, Math.round(16 * envelope + idlePhase));
+                    const idlePhase = Math.sin(i * 0.35 + waveTick * 0.12) * 3;
+                    barHeightPercent = Math.max(10, Math.round(15 * envelope + idlePhase));
                   }
 
                   return (
@@ -456,7 +467,7 @@ export const QuickDictationOverlay: React.FC = () => {
                       className="w-[2.5px] rounded-full bg-cyan-400 transition-all duration-75 shadow-sm"
                       style={{
                         height: `${barHeightPercent}%`,
-                        opacity: 0.65 + (barHeightPercent / 100) * 0.35,
+                        opacity: 0.6 + (barHeightPercent / 100) * 0.4,
                       }}
                     />
                   );

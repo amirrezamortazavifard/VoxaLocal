@@ -360,7 +360,7 @@ fn run_capture_processing_loop(
 
                 if last_level_emit.elapsed() >= level_emit_interval {
                     let (rms, peak, db) = calculate_rms_and_peak(raw_mono_slice);
-                    let is_speech = rms > 0.015;
+                    let is_speech = rms > 0.003 || db > -52.0;
                     let _ = app.emit("audio://level", AudioLevelPayload { rms, peak, db, is_speech });
                     last_level_emit = Instant::now();
                 }

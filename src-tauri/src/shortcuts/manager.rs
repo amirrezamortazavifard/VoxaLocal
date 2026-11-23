@@ -25,8 +25,8 @@ impl Default for QuickDictationSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            shortcut: "Ctrl+Shift+Space".to_string(),
-            mode: PttMode::PushToTalk,
+            shortcut: "Ctrl+Shift+B".to_string(),
+            mode: PttMode::Toggle,
             auto_paste: false,
             timeout_seconds: 15,
             show_waveform: true,

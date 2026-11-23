@@ -61,3 +61,38 @@ fn test_buffer_stats() {
     assert_eq!(stats.total_count(), 1600);
     assert_eq!(stats.dropped_count(), 100);
 }
+
+#[test]
+fn test_cpal_input_device() {
+    use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    let host = cpal::default_host();
+    println!("CPAL Default Host: {:?}", host.id());
+
+    let default_in = host.default_input_device().expect("must have default input");
+    println!("CPAL Default input device: {:?}", default_in.name().ok());
+
+    let cfg = default_in.default_input_config().expect("default config");
+    println!("Default input config: channels={}, sample_rate={}, format={:?}", cfg.channels(), cfg.sample_rate().0, cfg.sample_format());
+
+    let count = Arc::new(AtomicUsize::new(0));
+    let c_clone = Arc::clone(&count);
+
+    let stream = default_in.build_input_stream(
+        &cfg.into(),
+        move |data: &[f32], _: &cpal::InputCallbackInfo| {
+            c_clone.fetch_add(data.len(), Ordering::SeqCst);
+        },
+        |err| eprintln!("Stream err: {err}"),
+        None,
+    ).expect("build stream");
+
+    stream.play().expect("play stream");
+    std::thread::sleep(Duration::from_millis(300));
+    let samples = count.load(Ordering::SeqCst);
+    println!("Captured samples in 300ms: {}", samples);
+    assert!(samples > 0, "CPAL WASAPI must capture audio frames!");
+}

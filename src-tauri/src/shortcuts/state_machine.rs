@@ -9,7 +9,7 @@ pub enum PttMode {
 
 impl Default for PttMode {
     fn default() -> Self {
-        PttMode::PushToTalk
+        PttMode::Toggle
     }
 }
 
