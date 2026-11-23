@@ -90,3 +90,12 @@ pub fn stop_quick_dictation_session(
     shortcut_mgr.trigger_stop(&app);
     Ok(())
 }
+
+#[tauri::command]
+pub fn cancel_quick_dictation_session(
+    app: AppHandle,
+    shortcut_mgr: State<'_, Arc<ShortcutManager>>,
+) -> Result<(), String> {
+    shortcut_mgr.cancel_dictation_session(&app);
+    Ok(())
+}

@@ -67,8 +67,8 @@ impl OverlayManager {
                 let screen_size = monitor.size();
                 let screen_pos = monitor.position();
 
-                let width = 520u32;
-                let height = 160u32;
+                let width = 560u32;
+                let height = 185u32;
                 let _ = window.set_size(tauri::Size::Physical(PhysicalSize { width, height }));
 
                 // Position slightly below screen center or bottom-center

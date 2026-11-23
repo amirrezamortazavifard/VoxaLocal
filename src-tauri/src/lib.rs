@@ -83,11 +83,21 @@ pub fn run() {
 
                 // Register state with Tauri
                 app.manage(model_manager);
-                app.manage(asr_engine);
+                app.manage(Arc::clone(&asr_engine));
                 app.manage(audio_capture);
                 app.manage(history_repo);
                 app.manage(settings_repo);
                 app.manage(shortcut_manager);
+
+                // Pre-load ASR models in RAM in background for zero-latency dictation
+                let asr_engine_preload = Arc::clone(&asr_engine);
+                std::thread::spawn(move || {
+                    if let Err(e) = asr_engine_preload.ensure_models_loaded() {
+                        log::warn!("Background ASR model pre-load: {e}");
+                    } else {
+                        log::info!("ASR models successfully pre-loaded into RAM for zero-latency dictation.");
+                    }
+                });
 
                 log::info!("VoxLocal backend services successfully registered.");
                 Ok(())
@@ -130,6 +140,7 @@ pub fn run() {
             get_quick_dictation_state,
             start_quick_dictation_session,
             stop_quick_dictation_session,
+            cancel_quick_dictation_session,
             get_app_setting,
             set_app_setting,
         ])

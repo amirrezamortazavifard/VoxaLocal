@@ -7,6 +7,9 @@ import {
   ClipboardPaste,
   ExternalLink,
   X,
+  Mic,
+  Square,
+  AlertCircle,
 } from 'lucide-react';
 import {
   AudioLevelPayload,
@@ -24,7 +27,8 @@ import { useLanguage } from '../../i18n/LanguageContext';
 export const QuickDictationOverlay: React.FC = () => {
   const { t, language } = useLanguage();
 
-  const [overlayState, setOverlayState] = useState<'recording' | 'result' | 'idle' | 'pasted'>('idle');
+  const [overlayState, setOverlayState] = useState<'recording' | 'result' | 'pasted' | 'error'>('recording');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState<AudioLevelPayload>({
     rms: 0,
     peak: 0,
@@ -53,6 +57,7 @@ export const QuickDictationOverlay: React.FC = () => {
   const startTimeRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
   const autoCloseTimerRef = useRef<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [autoCloseRemaining, setAutoCloseRemaining] = useState<number | null>(null);
 
   useEffect(() => {
@@ -66,19 +71,19 @@ export const QuickDictationOverlay: React.FC = () => {
       .catch((err) => console.error('Failed to load quick dictation settings:', err));
   }, []);
 
-  // Keyboard shortcut listener (Escape to cancel, Space/Enter)
+  // Keyboard shortcut listener (Escape to cancel)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        handleDismiss();
+        handleCancel();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Animation frame ticker for smooth waveform movement
+  // Waveform animation ticker
   useEffect(() => {
     if (overlayState !== 'recording') return;
     const interval = setInterval(() => {
@@ -87,17 +92,25 @@ export const QuickDictationOverlay: React.FC = () => {
     return () => clearInterval(interval);
   }, [overlayState]);
 
+  // Auto-scroll transcript container to bottom as words arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [committedWords, trackedProvisionalWords]);
+
   // Listen to IPC events
   useEffect(() => {
     let unlistens: Array<() => void> = [];
 
     async function initListeners() {
-      // 1. Session started by global shortcut
+      // 1. Session started by global shortcut or button
       const uStarted = await listen<string>('quick-dictation://started', () => {
         setCommittedWords([]);
         committedWordsRef.current = [];
         setTrackedProvisionalWords([]);
         setResultText('');
+        setErrorMessage(null);
         setOverlayState('recording');
         setRecordingSeconds(0);
         startTimeRef.current = Date.now();
@@ -106,7 +119,7 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uStarted);
 
-      // 2. Partial streaming words
+      // 2. Partial streaming words (real-time hypothesis)
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
         const open = event.payload.open || [];
         const tail = event.payload.tail || [];
@@ -137,7 +150,6 @@ export const QuickDictationOverlay: React.FC = () => {
         setResultText(formatted);
         setTrackedProvisionalWords([]);
 
-        // Auto-paste if enabled in settings
         invoke<QuickDictationSettings>('get_quick_dictation_settings')
           .then((cfg) => {
             if (cfg.autoPaste && formatted.trim().length > 0) {
@@ -180,13 +192,22 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uFinalized);
 
-      // 5. Dismissed
+      // 5. Dismissed / Hidden
       const uDismissed = await listen('quick-dictation://dismissed', () => {
-        setOverlayState('idle');
+        setCommittedWords([]);
+        committedWordsRef.current = [];
+        setTrackedProvisionalWords([]);
       });
       unlistens.push(uDismissed);
 
-      // 6. Audio level
+      // 6. Errors
+      const uError = await listen<string>('quick-dictation://error', (event) => {
+        setErrorMessage(event.payload);
+        setOverlayState('error');
+      });
+      unlistens.push(uError);
+
+      // 7. Audio level
       const uLevel = await listen<AudioLevelPayload>('audio://level', (event) => {
         setAudioLevel(event.payload);
       });
@@ -200,9 +221,10 @@ export const QuickDictationOverlay: React.FC = () => {
     };
   }, [language]);
 
-  // Recording duration timer
+  // Duration timer
   useEffect(() => {
     if (overlayState === 'recording') {
+      startTimeRef.current = startTimeRef.current || Date.now();
       timerRef.current = window.setInterval(() => {
         if (startTimeRef.current) {
           setRecordingSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
@@ -235,7 +257,7 @@ export const QuickDictationOverlay: React.FC = () => {
         setAutoCloseRemaining(remaining);
         if (remaining <= 0) {
           if (autoCloseTimerRef.current) clearInterval(autoCloseTimerRef.current);
-          handleDismiss();
+          handleCancel();
         }
       }, 1000);
     }
@@ -249,6 +271,14 @@ export const QuickDictationOverlay: React.FC = () => {
       await invoke('stop_quick_dictation_session');
     } catch (err) {
       console.error('Failed to stop dictation:', err);
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      await invoke('cancel_quick_dictation_session');
+    } catch (err) {
+      console.error('Failed to cancel dictation:', err);
     }
   };
 
@@ -277,186 +307,210 @@ export const QuickDictationOverlay: React.FC = () => {
     }
   };
 
-  const handleDismiss = async () => {
-    try {
-      await invoke('dismiss_quick_dictation');
-    } catch (err) {
-      console.error('Failed to dismiss overlay:', err);
-    }
-  };
-
-  // Generate 42 symmetrical waveform bars matching Image 1
-  const totalBars = 42;
+  // Generate 36 dynamic equalizer bars
+  const totalBars = 36;
   const bars = Array.from({ length: totalBars });
 
-  const allWords = [...committedWords, ...trackedProvisionalWords];
-  const hasWords = allWords.length > 0;
-  const latestWordsString = allWords
-    .slice(-7)
-    .map((w) => w.text)
-    .join(' ');
+  const hasAnyWords = committedWords.length > 0 || trackedProvisionalWords.length > 0;
 
   return (
     <div className="w-screen h-screen p-2 select-none overflow-hidden flex items-center justify-center bg-transparent">
-      {/* Sleek Floating Pill Container matching Image 1 */}
-      <div className="w-full max-w-[500px] h-[145px] bg-[#18191c]/98 border border-white/10 rounded-[26px] backdrop-blur-2xl shadow-2xl flex flex-col justify-between p-3.5 relative overflow-hidden text-slate-100 font-sans">
+      {/* Sleek Floating Pill Container */}
+      <div className="w-full max-w-[540px] h-[175px] bg-[#16171a]/98 border border-white/10 rounded-[26px] backdrop-blur-2xl shadow-2xl flex flex-col justify-between p-3.5 relative overflow-hidden text-slate-100 font-sans">
         {/* Subtle top inner light highlight */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent pointer-events-none" />
 
-        {/* State A: Recording / Streaming Mode */}
+        {/* ================= STATE 1: RECORDING / LIVE WORD-BY-WORD STREAM ================= */}
         {overlayState === 'recording' && (
           <div className="flex flex-col h-full justify-between">
-            {/* Top / Center Area: Dynamic Waveform & Live Words */}
-            <div className="relative flex-1 flex flex-col items-center justify-center pt-1 pb-1">
-              {/* Optional live provisional transcript overlay */}
-              {hasWords && (
-                <div
-                  className="absolute top-0 inset-x-0 text-center text-xs font-medium text-cyan-300/90 truncate px-4 pointer-events-none z-10 animate-fade-in"
-                  dir={language === 'fa' ? 'rtl' : 'ltr'}
-                >
-                  {latestWordsString}
-                </div>
-              )}
-
-              {/* Symmetrical vertical soundwave bars matching Image 1 */}
-              <div className="flex items-center justify-center gap-[3.5px] h-16 w-full px-2" dir="ltr">
-                {bars.map((_, i) => {
-                  const normDist = Math.abs(i - 20.5) / 21.0;
-                  // Cosine envelope: high in center, smoothly tapered at edges
-                  const envelope = Math.pow(Math.cos(normDist * Math.PI * 0.48), 1.25);
-
-                  let barHeightPercent: number;
-                  if (audioLevel.isSpeech || audioLevel.rms > 0.015) {
-                    const wavePhase = Math.sin(i * 0.45 + waveTick * 0.3) * 0.3 + 0.7;
-                    const dynamicGain = Math.min(100, (audioLevel.rms * 380) * envelope * wavePhase);
-                    barHeightPercent = Math.max(14, Math.min(96, Math.round(16 + dynamicGain)));
-                  } else {
-                    // Soft ambient idle breathing
-                    const idlePhase = Math.sin(i * 0.3 + waveTick * 0.12) * 4;
-                    barHeightPercent = Math.max(10, Math.round(18 * envelope + idlePhase));
-                  }
-
-                  return (
-                    <div
-                      key={i}
-                      className="w-[3px] rounded-full bg-white transition-all duration-75 shadow-sm"
-                      style={{
-                        height: `${barHeightPercent}%`,
-                        opacity: 0.85 + (barHeightPercent / 100) * 0.15,
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Bottom Action Bar matching Image 1 */}
-            <div className="flex items-center justify-between px-2 pt-2 border-t border-white/[0.07] text-xs">
-              {/* Left: Brand Delta Glyph */}
-              <div className="flex items-center space-x-2 text-slate-400">
-                <svg
-                  className="w-4 h-4 text-slate-300"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3L2 20h20L12 3z" />
-                </svg>
-                <span className="text-[11px] font-mono text-slate-400">
-                  {formatDuration(recordingSeconds)}
+            {/* Top Header Bar: Status, Duration & Close Button (X) */}
+            <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08] text-xs">
+              {/* Left: Recording Pulse & Status */}
+              <div className="flex items-center space-x-2 space-x-reverse">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                </span>
+                <span className="text-cyan-300 font-bold text-xs tracking-wide">
+                  {language === 'fa' ? 'در حال شنیدن و بازشناسی زنده...' : 'Listening & transcribing live...'}
+                </span>
+                <span className="font-mono text-slate-400 text-[11px]" dir="ltr">
+                  ({formatDuration(recordingSeconds)})
                 </span>
               </div>
 
-              {/* Right: Stop & Cancel Action Badges */}
-              <div className="flex items-center space-x-3 text-xs text-slate-400">
-                {/* Stop Button & Key Badges */}
-                <button
-                  onClick={handleStop}
-                  className="flex items-center space-x-1.5 text-slate-300 hover:text-white transition-colors group cursor-pointer"
-                  title="Stop recording"
-                >
-                  <span className="text-[11px] text-slate-400 group-hover:text-slate-200 font-medium">
-                    {language === 'fa' ? 'توقف' : 'Stop'}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#28292d] text-slate-300 border border-white/10 font-mono text-[10px] shadow-sm">
-                    ^
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-[#28292d] text-slate-300 border border-white/10 font-mono text-[10px] shadow-sm">
-                    Space
-                  </span>
-                </button>
-
-                {/* Cancel Button & Key Badge */}
-                <button
-                  onClick={handleDismiss}
-                  className="flex items-center space-x-1.5 text-slate-400 hover:text-rose-300 transition-colors group cursor-pointer"
-                  title="Cancel and dismiss (Esc)"
-                >
-                  <span className="text-[11px] text-slate-400 group-hover:text-rose-300 font-medium">
-                    {language === 'fa' ? 'لغو' : 'Cancel'}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#28292d] text-slate-400 group-hover:text-rose-300 border border-white/10 font-mono text-[10px] shadow-sm">
-                    esc
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* State B: Auto-Pasted Notification */}
-        {overlayState === 'pasted' && (
-          <div className="flex flex-col h-full items-center justify-center text-center p-3 animate-fade-in">
-            <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center mb-2">
-              <Check className="w-5 h-5 text-emerald-400" />
-            </div>
-            <p className="text-xs font-semibold text-slate-100">
-              {language === 'fa' ? 'در برنامه جای‌گذاری شد' : 'Pasted into target app'}
-            </p>
-            <p className="text-[11px] text-slate-400 truncate max-w-sm mt-1" dir={language === 'fa' ? 'rtl' : 'ltr'}>
-              {resultText}
-            </p>
-          </div>
-        )}
-
-        {/* State C: Result / Manual Action Mode */}
-        {overlayState === 'result' && (
-          <div className="flex flex-col h-full justify-between">
-            <div className="flex items-center justify-between text-xs pb-1 border-b border-white/[0.08]">
-              <span className="text-cyan-300 font-semibold text-xs flex items-center space-x-1.5 space-x-reverse">
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{t('dictationComplete')}</span>
-              </span>
-
-              {autoCloseRemaining !== null && autoCloseRemaining > 0 && (
-                <span className="text-[10px] font-mono text-slate-400">
-                  {autoCloseRemaining}s
-                </span>
-              )}
-
+              {/* Right: Dedicated Close Button (X) */}
               <button
-                onClick={handleDismiss}
-                className="text-slate-400 hover:text-slate-200 p-0.5 rounded transition-colors"
+                onClick={handleCancel}
+                className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 transition-all cursor-pointer"
+                title={language === 'fa' ? 'بستن و لغو (Esc)' : 'Close and Cancel (Esc)'}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
+            {/* Center Area: Real-Time Word Stream (Telegram Style) */}
             <div
-              className="flex-1 my-1.5 text-xs text-slate-100 overflow-y-auto leading-relaxed p-1.5 bg-[#121316] rounded-xl border border-white/5"
-              dir={language === 'fa' ? 'rtl' : 'ltr'}
+              ref={scrollRef}
+              className="flex-1 my-1 px-2 overflow-y-auto text-sm md:text-base leading-relaxed flex flex-wrap gap-x-1.5 gap-y-1 content-start items-center"
+              dir="auto"
             >
-              {resultText || (language === 'fa' ? 'متنی شناسایی نشد.' : 'No speech recognized.')}
+              {!hasAnyWords ? (
+                <div className="flex items-center justify-center space-x-2 space-x-reverse text-slate-400 text-xs py-2 w-full animate-pulse select-none">
+                  <Mic className="w-4 h-4 text-cyan-400" />
+                  <span>
+                    {language === 'fa'
+                      ? 'صحبت کنید؛ کلمات شما بی‌درنگ و کلمه به کلمه اینجا ظاهر می‌شوند...'
+                      : 'Speak now; your words will appear here in real time...'}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {/* Finalized/Committed words (clean crisp solid text) */}
+                  {committedWords.map((word, idx) => (
+                    <span
+                      key={`comm-${idx}-${word.start}`}
+                      className="text-slate-100 font-medium tracking-normal"
+                    >
+                      {word.text}
+                    </span>
+                  ))}
+
+                  {/* Provisional / Re-decoded live words (Telegram-style animated reveals) */}
+                  {trackedProvisionalWords.map((word) => {
+                    let cls = 'text-cyan-300 font-semibold italic animate-word-appear';
+                    if (word.visualState === 'provisional-corrected') {
+                      cls =
+                        'text-amber-300 bg-amber-500/20 px-1 rounded border border-amber-400/40 animate-word-corrected font-bold';
+                    }
+                    return (
+                      <span key={word.id} className={cls}>
+                        {word.text}
+                      </span>
+                    );
+                  })}
+
+                  {/* Pulsing blinking cursor */}
+                  <span className="inline-block w-1.5 h-4.5 bg-cyan-400 rounded-full animate-cursor-blink self-center ms-1 shadow-[0_0_8px_#22d3ee]" />
+                </>
+              )}
             </div>
 
+            {/* Bottom Bar: Soundwave Equalizer & Action Buttons */}
+            <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.08] text-xs">
+              {/* Dynamic Soundwave Equalizer */}
+              <div className="flex items-center gap-[3px] h-6 px-1" dir="ltr">
+                {bars.map((_, i) => {
+                  const normDist = Math.abs(i - 17.5) / 18.0;
+                  const envelope = Math.pow(Math.cos(normDist * Math.PI * 0.48), 1.2);
+
+                  let barHeightPercent: number;
+                  if (audioLevel.isSpeech || audioLevel.rms > 0.015) {
+                    const wavePhase = Math.sin(i * 0.45 + waveTick * 0.3) * 0.3 + 0.7;
+                    const dynamicGain = Math.min(100, (audioLevel.rms * 380) * envelope * wavePhase);
+                    barHeightPercent = Math.max(14, Math.min(95, Math.round(16 + dynamicGain)));
+                  } else {
+                    const idlePhase = Math.sin(i * 0.35 + waveTick * 0.15) * 4;
+                    barHeightPercent = Math.max(10, Math.round(16 * envelope + idlePhase));
+                  }
+
+                  return (
+                    <div
+                      key={i}
+                      className="w-[2.5px] rounded-full bg-cyan-400 transition-all duration-75 shadow-sm"
+                      style={{
+                        height: `${barHeightPercent}%`,
+                        opacity: 0.65 + (barHeightPercent / 100) * 0.35,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Right Action Buttons */}
+              <div className="flex items-center space-x-2 space-x-reverse">
+                <button
+                  onClick={handleStop}
+                  className="flex items-center space-x-1.5 space-x-reverse px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
+                  title="Stop recording"
+                >
+                  <Square className="w-3 h-3 fill-current" />
+                  <span>{language === 'fa' ? 'توقف و درج' : 'Stop & Paste'}</span>
+                </button>
+
+                <button
+                  onClick={handleCancel}
+                  className="flex items-center space-x-1 space-x-reverse px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-slate-200 border border-white/10 text-xs transition-colors cursor-pointer"
+                  title="Cancel (Esc)"
+                >
+                  <span>{language === 'fa' ? 'لغو' : 'Cancel'}</span>
+                  <span className="font-mono text-[10px] text-slate-500">Esc</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= STATE 2: AUTO-PASTED NOTIFICATION ================= */}
+        {overlayState === 'pasted' && (
+          <div className="flex flex-col h-full items-center justify-center text-center p-3 animate-fade-in">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center mb-2">
+              <Check className="w-5 h-5 text-emerald-400" />
+            </div>
+            <p className="text-sm font-bold text-slate-100">
+              {language === 'fa' ? 'متن با موفقیت جای‌گذاری شد' : 'Pasted into application'}
+            </p>
+            <p className="text-xs text-slate-300 truncate max-w-md mt-1" dir="auto">
+              «{resultText}»
+            </p>
+          </div>
+        )}
+
+        {/* ================= STATE 3: RESULT REVIEW MODE ================= */}
+        {overlayState === 'result' && (
+          <div className="flex flex-col h-full justify-between">
+            {/* Header */}
+            <div className="flex items-center justify-between text-xs pb-1 border-b border-white/[0.08]">
+              <span className="text-cyan-300 font-bold text-xs flex items-center space-x-1.5 space-x-reverse">
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{t('dictationComplete')}</span>
+              </span>
+
+              <div className="flex items-center space-x-2 space-x-reverse">
+                {autoCloseRemaining !== null && autoCloseRemaining > 0 && (
+                  <span className="text-[10px] font-mono text-slate-400 bg-white/[0.05] px-1.5 py-0.5 rounded">
+                    {autoCloseRemaining}s
+                  </span>
+                )}
+                <button
+                  onClick={handleCancel}
+                  className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 transition-colors cursor-pointer"
+                  title="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Editable Text Area */}
+            <textarea
+              value={resultText}
+              onChange={(e) => {
+                setResultText(e.target.value);
+                if (autoCloseTimerRef.current) clearInterval(autoCloseTimerRef.current);
+                setAutoCloseRemaining(null);
+              }}
+              className="flex-1 my-1.5 text-xs md:text-sm text-slate-100 leading-relaxed p-2 bg-[#121316] rounded-xl border border-white/10 focus:outline-none focus:border-cyan-500/50 resize-none"
+              dir="auto"
+              placeholder="متن رونویسی شده..."
+            />
+
+            {/* Actions */}
             <div className="flex items-center justify-between pt-1 border-t border-white/[0.08]">
               <div className="flex items-center space-x-1.5 space-x-reverse">
                 <button
                   onClick={handlePaste}
-                  className="flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition-all"
+                  className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
                 >
                   <ClipboardPaste className="w-3.5 h-3.5" />
                   <span>{pasted ? t('pasted') : t('pasteToApp')}</span>
@@ -464,7 +518,7 @@ export const QuickDictationOverlay: React.FC = () => {
 
                 <button
                   onClick={handleCopy}
-                  className="flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-lg bg-[#28292d] hover:bg-[#323439] text-slate-200 text-xs transition-colors border border-white/10"
+                  className="flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-lg bg-[#28292d] hover:bg-[#323439] text-slate-200 text-xs transition-colors border border-white/10 cursor-pointer"
                 >
                   {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                   <span>{copied ? t('copied') : t('copyText')}</span>
@@ -473,7 +527,7 @@ export const QuickDictationOverlay: React.FC = () => {
 
               <button
                 onClick={handleOpenInStudio}
-                className="flex items-center space-x-1 space-x-reverse text-[11px] text-slate-400 hover:text-cyan-300 transition-colors"
+                className="flex items-center space-x-1 space-x-reverse text-[11px] text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
               >
                 <span>{t('openInStudio')}</span>
                 <ExternalLink className="w-3 h-3" />
@@ -482,35 +536,33 @@ export const QuickDictationOverlay: React.FC = () => {
           </div>
         )}
 
-        {/* State D: Idle / Standby Mode */}
-        {overlayState === 'idle' && (
-          <div className="h-full flex flex-col justify-between">
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
-              <div className="flex items-center justify-center gap-[3px] h-9 w-full px-4 mb-2 opacity-50" dir="ltr">
-                {bars.slice(0, 32).map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-[2.5px] rounded-full bg-slate-500"
-                    style={{ height: `${Math.max(15, Math.sin((i / 31) * Math.PI) * 70)}%` }}
-                  />
-                ))}
-              </div>
-              <p className="text-xs font-semibold text-slate-300">{t('quickDictationReady')}</p>
+        {/* ================= STATE 4: ERROR MODE ================= */}
+        {overlayState === 'error' && (
+          <div className="flex flex-col h-full justify-between p-1">
+            <div className="flex items-center justify-between text-xs pb-1 border-b border-rose-500/20">
+              <span className="text-rose-400 font-bold text-xs flex items-center space-x-1.5 space-x-reverse">
+                <AlertCircle className="w-4 h-4 text-rose-400" />
+                <span>خطای دیکته صوتی</span>
+              </span>
+              <button
+                onClick={handleCancel}
+                className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            <div className="flex items-center justify-between px-2 pt-2 border-t border-white/[0.07] text-xs">
-              <div className="flex items-center space-x-1.5 text-slate-400">
-                <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 3L2 20h20L12 3z" />
-                </svg>
-                <span className="text-[11px] text-slate-400">VoxaLocal</span>
-              </div>
-              <div className="flex items-center space-x-1.5">
-                <span className="text-[11px] text-slate-400">{language === 'fa' ? 'میانبر:' : 'Shortcut:'}</span>
-                <span className="px-2 py-0.5 rounded bg-[#28292d] text-slate-300 border border-white/10 font-mono text-[10px]">
-                  {settings.shortcut}
-                </span>
-              </div>
+            <div className="flex-1 my-2 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 font-mono overflow-y-auto">
+              {errorMessage || 'خطایی در راه‌اندازی ضبط رخ داده است.'}
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={handleCancel}
+                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium cursor-pointer"
+              >
+                بستن (Close)
+              </button>
             </div>
           </div>
         )}

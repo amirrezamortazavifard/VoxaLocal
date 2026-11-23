@@ -174,11 +174,7 @@ impl ShortcutManager {
         // 3. Capture active foreground window BEFORE overlay opens
         capture_foreground_window();
 
-        // 4. Position and show floating overlay WITHOUT activating it (preserves target focus)
-        OverlayManager::center_on_active_monitor(app);
-        let _ = OverlayManager::show(app, true);
-
-        // 5. Start recognition session with QuickDictation origin
+        // 4. Start recognition session with QuickDictation origin
         let session_id = match asr_engine.start_recording(app.clone(), models, SessionOrigin::QuickDictation, None) {
             Ok(sid) => sid,
             Err(e) => {
@@ -191,7 +187,7 @@ impl ShortcutManager {
 
         *self.last_session_id.write() = Some(session_id.clone());
 
-        // 6. Start microphone capture
+        // 5. Start microphone capture
         if let Err(e) = audio_capture.start_capture(app.clone(), Arc::clone(&asr_engine)) {
             log::error!("Failed to start microphone: {e}");
             let _ = asr_engine.cancel_recording(SessionOrigin::QuickDictation);
@@ -199,6 +195,10 @@ impl ShortcutManager {
             self.state_machine.write().on_error();
             return;
         }
+
+        // 6. Position and show floating overlay WITHOUT activating it (preserves target focus)
+        OverlayManager::center_on_active_monitor(app);
+        let _ = OverlayManager::show(app, true);
 
         // 7. Notify state machine and UI
         let immediate_stop = self.state_machine.write().on_started();
@@ -208,6 +208,18 @@ impl ShortcutManager {
             log::info!("Shortcut was released during startup; immediately stopping session.");
             self.stop_quick_dictation(app);
         }
+    }
+
+    pub fn cancel_dictation_session(&self, app: &AppHandle) {
+        log::info!("Cancelling Quick Dictation session...");
+        let asr_engine = app.state::<Arc<AsrEngine>>();
+        let audio_capture = app.state::<Arc<AudioCapture>>();
+
+        audio_capture.stop_capture();
+        let _ = asr_engine.cancel_recording(SessionOrigin::QuickDictation);
+        self.state_machine.write().reset_to_idle();
+        let _ = OverlayManager::hide(app);
+        let _ = app.emit("quick-dictation://dismissed", ());
     }
 
     fn stop_quick_dictation(&self, app: &AppHandle) {
