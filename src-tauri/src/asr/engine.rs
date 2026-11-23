@@ -33,7 +33,7 @@ impl Default for RecognitionSettings {
 
         Self {
             language_mode: "fa".to_string(),
-            beam_width: tinyasr::DEFAULT_BEAM,
+            beam_width: 1, // GREEDY (beam 1) matching tinyasr web demo for instantaneous real-time word typing
             threads: default_threads,
             auto_threads: true,
         }

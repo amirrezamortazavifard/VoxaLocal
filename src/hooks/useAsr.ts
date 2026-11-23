@@ -115,11 +115,12 @@ export function useAsr() {
     const cleanups: Array<() => void> = [];
 
     async function setupListeners() {
-      // 1. Partial: replace previous uncommitted open & tail words with Telegram-style diff tracking
+      // 1. Partial: replace previous uncommitted open & tail words with instantaneous streaming
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
         if (isCancelled) return;
-        if (currentSessionIdRef.current && event.payload.sessionId !== currentSessionIdRef.current) {
-          return;
+        if (event.payload.sessionId) {
+          currentSessionIdRef.current = event.payload.sessionId;
+          setCurrentSessionId(event.payload.sessionId);
         }
 
         const open = event.payload.open || [];
@@ -136,8 +137,9 @@ export function useAsr() {
       // 2. Commit: append finalized words to committedWords with timestamp-aware deduplication
       const uCommit = await listen<CommitEventPayload>('asr://commit', (event) => {
         if (isCancelled) return;
-        if (currentSessionIdRef.current && event.payload.sessionId !== currentSessionIdRef.current) {
-          return;
+        if (event.payload.sessionId) {
+          currentSessionIdRef.current = event.payload.sessionId;
+          setCurrentSessionId(event.payload.sessionId);
         }
 
         if (event.payload.words && event.payload.words.length > 0) {
@@ -156,9 +158,6 @@ export function useAsr() {
       // 3. Language switched
       const uLang = await listen<LanguageEventPayload>('asr://language', (event) => {
         if (isCancelled) return;
-        if (currentSessionIdRef.current && event.payload.sessionId !== currentSessionIdRef.current) {
-          return;
-        }
         setActiveLanguage(event.payload.lang);
       });
       cleanups.push(uLang);
@@ -166,9 +165,6 @@ export function useAsr() {
       // 4. End-of-turn head output
       const uEou = await listen<EouEventPayload>('asr://eou', (event) => {
         if (isCancelled) return;
-        if (currentSessionIdRef.current && event.payload.sessionId !== currentSessionIdRef.current) {
-          return;
-        }
         setEouProb(event.payload.p);
       });
       cleanups.push(uEou);
@@ -176,12 +172,9 @@ export function useAsr() {
       // 5. Engine status
       const uStatus = await listen<StatusEventPayload>('asr://status', (event) => {
         if (isCancelled) return;
-        if (
-          event.payload.sessionId &&
-          currentSessionIdRef.current &&
-          event.payload.sessionId !== currentSessionIdRef.current
-        ) {
-          return;
+        if (event.payload.sessionId) {
+          currentSessionIdRef.current = event.payload.sessionId;
+          setCurrentSessionId(event.payload.sessionId);
         }
         setStatus(event.payload.status as any);
       });
@@ -312,12 +305,14 @@ export function useAsr() {
   // Combine all current words for full plain text export
   const allCurrentWords: WordItem[] = [
     ...committedWords,
-    ...trackedProvisionalWords.map((tw) => ({
-      text: tw.text,
-      start: tw.start,
-      end: tw.end,
-      join: tw.join,
-    })),
+    ...(trackedProvisionalWords.length > 0
+      ? trackedProvisionalWords.map((tw) => ({
+          text: tw.text,
+          start: tw.start,
+          end: tw.end,
+          join: tw.join,
+        }))
+      : [...openWords, ...tailWords]),
   ];
 
   return {

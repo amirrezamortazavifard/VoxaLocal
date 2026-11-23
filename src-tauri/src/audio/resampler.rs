@@ -1,91 +1,102 @@
-use rubato::{FastFixedIn, PolynomialDegree, Resampler};
-
+/// Ultra-low-latency real-time streaming resampler matching the TinyASR native web worklet:
+/// Linear interpolation over a 3-tap moving average anti-aliasing filter, emitting
+/// in exact 640-sample (40 ms) frames with zero block latency.
 pub struct AudioResampler {
-    resampler: Option<FastFixedIn<f32>>,
     source_rate: u32,
     target_rate: u32,
-    input_buffer: Vec<f32>,
-    chunk_size: usize,
+    r: f32,
+    t: f32,
+    p: f32,
+    q: f32,
+    out_buffer: Vec<f32>,
 }
 
 impl AudioResampler {
     pub fn new(source_rate: u32, target_rate: u32) -> Result<Self, String> {
-        if source_rate == target_rate {
-            return Ok(Self {
-                resampler: None,
-                source_rate,
-                target_rate,
-                input_buffer: Vec::new(),
-                chunk_size: 0,
-            });
+        if source_rate == 0 || target_rate == 0 {
+            return Err("Sample rate must be greater than 0".to_string());
         }
 
-        let chunk_size = 1024;
-        let resample_ratio = target_rate as f64 / source_rate as f64;
-        let resampler = FastFixedIn::<f32>::new(
-            resample_ratio,
-            1.0,
-            PolynomialDegree::Septic,
-            chunk_size,
-            1,
-        ).map_err(|e| format!("Failed to create Rubato resampler: {e}"))?;
-
+        let r = source_rate as f32 / target_rate as f32;
         Ok(Self {
-            resampler: Some(resampler),
             source_rate,
             target_rate,
-            input_buffer: Vec::with_capacity(chunk_size * 2),
-            chunk_size,
+            r,
+            t: 0.0,
+            p: 0.0,
+            q: 0.0,
+            out_buffer: Vec::with_capacity(1280),
         })
     }
 
     pub fn process(&mut self, input: &[f32]) -> Result<Vec<f32>, String> {
-        if self.source_rate == self.target_rate || self.resampler.is_none() {
-            return Ok(input.to_vec());
-        }
-
-        let resampler = self.resampler.as_mut().unwrap();
-        self.input_buffer.extend_from_slice(input);
-
-        let mut output = Vec::new();
-
-        while self.input_buffer.len() >= self.chunk_size {
-            let chunk: Vec<f32> = self.input_buffer.drain(..self.chunk_size).collect();
-            let wave_in = vec![chunk];
-            let wave_out = resampler
-                .process(&wave_in, None)
-                .map_err(|e| format!("Resampling error: {e}"))?;
-
-            if let Some(resampled_channel) = wave_out.into_iter().next() {
-                output.extend(resampled_channel);
-            }
-        }
-
-        Ok(output)
-    }
-
-    pub fn flush(&mut self) -> Result<Vec<f32>, String> {
-        if self.input_buffer.is_empty() || self.resampler.is_none() {
+        if input.is_empty() {
             return Ok(Vec::new());
         }
 
-        let resampler = self.resampler.as_mut().unwrap();
-        // Pad remaining samples to chunk_size with zeros
-        let remaining_len = self.input_buffer.len();
-        self.input_buffer.resize(self.chunk_size, 0.0);
-        let chunk: Vec<f32> = self.input_buffer.drain(..).collect();
-
-        let wave_in = vec![chunk];
-        let wave_out = resampler
-            .process(&wave_in, None)
-            .map_err(|e| format!("Resampling flush error: {e}"))?;
-
-        let mut output = Vec::new();
-        if let Some(resampled_channel) = wave_out.into_iter().next() {
-            let valid_output_len = ((remaining_len as f64 * (self.target_rate as f64 / self.source_rate as f64)).round() as usize).min(resampled_channel.len());
-            output.extend_from_slice(&resampled_channel[..valid_output_len]);
+        if self.source_rate == self.target_rate {
+            self.out_buffer.extend_from_slice(input);
+            if self.out_buffer.len() >= 640 {
+                let n_frames = (self.out_buffer.len() / 640) * 640;
+                let chunk: Vec<f32> = self.out_buffer.drain(..n_frames).collect();
+                return Ok(chunk);
+            }
+            return Ok(Vec::new());
         }
 
-        Ok(output)
+        let r = self.r;
+        let n = input.len();
+        let mut x = Vec::with_capacity(n);
+
+        // 3-tap moving average anti-aliasing filter when downsampling (r >= 2.0)
+        if r >= 2.0 {
+            for j in 0..n {
+                let a = if j > 0 { input[j - 1] } else { self.p };
+                let b = input[j];
+                let d = if j + 1 < n { input[j + 1] } else { input[j] };
+                x.push((a + b + d) / 3.0);
+            }
+        } else {
+            x.extend_from_slice(input);
+        }
+
+        let mut t = self.t;
+        while t < (n as f32 - 1.0) {
+            let k = t.floor() as i32;
+            let f = t - (k as f32);
+            let a = if k < 0 {
+                self.q
+            } else {
+                x[k as usize]
+            };
+            let b = if (k + 1) < n as i32 {
+                x[(k + 1) as usize]
+            } else {
+                x[k as usize]
+            };
+            self.out_buffer.push(a + (b - a) * f);
+            t += r;
+        }
+
+        self.t = t - (n as f32);
+        self.p = input[n - 1];
+        self.q = x[n - 1];
+
+        // Emit chunks of 640 samples (40ms) immediately to feed tinyasr frame-by-frame
+        if self.out_buffer.len() >= 640 {
+            let n_frames = (self.out_buffer.len() / 640) * 640;
+            let chunk: Vec<f32> = self.out_buffer.drain(..n_frames).collect();
+            Ok(chunk)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    pub fn flush(&mut self) -> Result<Vec<f32>, String> {
+        let remaining = std::mem::take(&mut self.out_buffer);
+        self.t = 0.0;
+        self.p = 0.0;
+        self.q = 0.0;
+        Ok(remaining)
     }
 }

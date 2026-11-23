@@ -15,11 +15,9 @@ import {
   AudioLevelPayload,
   CommitEventPayload,
   PartialEventPayload,
-  TrackedWordItem,
   WordItem,
   QuickDictationSettings,
 } from '../../types/asr';
-import { trackProvisionalWords, pruneExpiredVisualStates } from '../../utils/wordDiffTracker';
 import { wordsToPlainString } from '../../utils/exportFormats';
 import { formatPersianTranscript } from '../../utils/persianTypography';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -37,7 +35,8 @@ export const QuickDictationOverlay: React.FC = () => {
   });
 
   const [committedWords, setCommittedWords] = useState<WordItem[]>([]);
-  const [trackedProvisionalWords, setTrackedProvisionalWords] = useState<TrackedWordItem[]>([]);
+  const [openWords, setOpenWords] = useState<WordItem[]>([]);
+  const [tailWords, setTailWords] = useState<WordItem[]>([]);
   const [resultText, setResultText] = useState<string>('');
   const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
   const [copied, setCopied] = useState(false);
@@ -54,6 +53,8 @@ export const QuickDictationOverlay: React.FC = () => {
   });
 
   const committedWordsRef = useRef<WordItem[]>([]);
+  const openWordsRef = useRef<WordItem[]>([]);
+  const tailWordsRef = useRef<WordItem[]>([]);
   const startTimeRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
   const autoCloseTimerRef = useRef<number | null>(null);
@@ -63,6 +64,14 @@ export const QuickDictationOverlay: React.FC = () => {
   useEffect(() => {
     committedWordsRef.current = committedWords;
   }, [committedWords]);
+
+  useEffect(() => {
+    openWordsRef.current = openWords;
+  }, [openWords]);
+
+  useEffect(() => {
+    tailWordsRef.current = tailWords;
+  }, [tailWords]);
 
   // Load Quick Dictation settings; DO NOT auto-start on mount (modal must ONLY open via shortcut)
   useEffect(() => {
@@ -109,7 +118,7 @@ export const QuickDictationOverlay: React.FC = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [committedWords, trackedProvisionalWords]);
+  }, [committedWords, openWords, tailWords]);
 
   // Listen to IPC events
   useEffect(() => {
@@ -120,7 +129,10 @@ export const QuickDictationOverlay: React.FC = () => {
       const uStarted = await listen<string>('quick-dictation://started', () => {
         setCommittedWords([]);
         committedWordsRef.current = [];
-        setTrackedProvisionalWords([]);
+        setOpenWords([]);
+        openWordsRef.current = [];
+        setTailWords([]);
+        tailWordsRef.current = [];
         setResultText('');
         setErrorMessage(null);
         setOverlayState('recording');
@@ -131,13 +143,14 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uStarted);
 
-      // 2. Partial streaming words (real-time hypothesis)
+      // 2. Partial streaming words (real-time live streaming hypothesis)
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
         const open = event.payload.open || [];
         const tail = event.payload.tail || [];
-        setTrackedProvisionalWords((prev) =>
-          trackProvisionalWords(prev, open, tail, committedWordsRef.current)
-        );
+        setOpenWords(open);
+        openWordsRef.current = open;
+        setTailWords(tail);
+        tailWordsRef.current = tail;
       });
       unlistens.push(uPartial);
 
@@ -149,18 +162,29 @@ export const QuickDictationOverlay: React.FC = () => {
             committedWordsRef.current = merged;
             return merged;
           });
-          setTrackedProvisionalWords([]);
+          setOpenWords([]);
+          openWordsRef.current = [];
+          setTailWords([]);
+          tailWordsRef.current = [];
         }
       });
       unlistens.push(uCommit);
 
       // 4. Session finalized (shortcut released or stop triggered)
       const uFinalized = await listen('quick-dictation://finalized', () => {
-        const all = committedWordsRef.current;
+        // Collect all words without losing any words still in open or tail
+        const all = [
+          ...committedWordsRef.current,
+          ...openWordsRef.current,
+          ...tailWordsRef.current,
+        ];
         const raw = wordsToPlainString(all);
         const formatted = formatPersianTranscript(raw);
         setResultText(formatted);
-        setTrackedProvisionalWords([]);
+        setOpenWords([]);
+        openWordsRef.current = [];
+        setTailWords([]);
+        tailWordsRef.current = [];
 
         invoke<QuickDictationSettings>('get_quick_dictation_settings')
           .then((cfg) => {
@@ -208,7 +232,10 @@ export const QuickDictationOverlay: React.FC = () => {
       const uDismissed = await listen('quick-dictation://dismissed', () => {
         setCommittedWords([]);
         committedWordsRef.current = [];
-        setTrackedProvisionalWords([]);
+        setOpenWords([]);
+        openWordsRef.current = [];
+        setTailWords([]);
+        tailWordsRef.current = [];
       });
       unlistens.push(uDismissed);
 
@@ -248,15 +275,6 @@ export const QuickDictationOverlay: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [overlayState]);
-
-  // Visual state expiration ticker
-  useEffect(() => {
-    if (overlayState !== 'recording') return;
-    const ticker = setInterval(() => {
-      setTrackedProvisionalWords((prev) => pruneExpiredVisualStates(prev));
-    }, 150);
-    return () => clearInterval(ticker);
   }, [overlayState]);
 
   // Auto-close timer in result mode
@@ -323,7 +341,7 @@ export const QuickDictationOverlay: React.FC = () => {
   const totalBars = 36;
   const bars = Array.from({ length: totalBars });
 
-  const hasAnyWords = committedWords.length > 0 || trackedProvisionalWords.length > 0;
+  const hasAnyWords = committedWords.length > 0 || openWords.length > 0 || tailWords.length > 0;
 
   return (
     <div className="w-screen h-screen p-2 select-none overflow-hidden flex items-center justify-center bg-transparent">
@@ -361,10 +379,10 @@ export const QuickDictationOverlay: React.FC = () => {
               </button>
             </div>
 
-            {/* Center Area: Real-Time Word Stream (Telegram Style) */}
+            {/* Center Area: Real-Time Word Stream (Telegram Style / TinyASR Native) */}
             <div
               ref={scrollRef}
-              className="flex-1 my-1 px-2 overflow-y-auto text-sm md:text-base leading-relaxed flex flex-wrap gap-x-1.5 gap-y-1 content-start items-center"
+              className="flex-1 my-1 px-2 overflow-y-auto text-sm md:text-base leading-relaxed flex flex-wrap gap-x-0.5 gap-y-1 content-start items-center"
               dir="auto"
             >
               {!hasAnyWords ? (
@@ -372,37 +390,43 @@ export const QuickDictationOverlay: React.FC = () => {
                   <Mic className="w-4 h-4 text-cyan-400" />
                   <span>
                     {language === 'fa'
-                      ? 'صحبت کنید؛ کلمات شما بی‌درنگ و کلمه به کلمه اینجا ظاهر می‌شوند...'
-                      : 'Speak now; your words will appear here in real time...'}
+                      ? 'صحبت کنید؛ کلمات شما بی‌درنگ و کلمه به کلمه اینجا تایپ می‌شوند...'
+                      : 'Speak now; your words will be typed here in real time...'}
                   </span>
                 </div>
               ) : (
                 <>
-                  {/* Finalized/Committed words (clean crisp solid text) */}
+                  {/* 1. Finalized Committed words (clean crisp solid text) */}
                   {committedWords.map((word, idx) => (
                     <span
                       key={`comm-${idx}-${word.start}`}
                       className="text-slate-100 font-medium tracking-normal"
                     >
-                      {word.text}
+                      {idx > 0 && !word.join ? ' ' : ''}{word.text}
                     </span>
                   ))}
 
-                  {/* Provisional / Re-decoded live words (Telegram-style animated reveals) */}
-                  {trackedProvisionalWords.map((word) => {
-                    let cls = 'text-cyan-300 font-semibold italic animate-word-appear';
-                    if (word.visualState === 'provisional-corrected') {
-                      cls =
-                        'text-amber-300 bg-amber-500/20 px-1 rounded border border-amber-400/40 animate-word-corrected font-bold';
-                    }
-                    return (
-                      <span key={word.id} className={cls}>
-                        {word.text}
-                      </span>
-                    );
-                  })}
+                  {/* 2. Re-decoded current sentence (Open words) */}
+                  {openWords.map((word, idx) => (
+                    <span
+                      key={`open-${idx}-${word.start}`}
+                      className="text-slate-100 font-medium tracking-normal"
+                    >
+                      {(committedWords.length > 0 || idx > 0) && !word.join ? ' ' : ''}{word.text}
+                    </span>
+                  ))}
 
-                  {/* Pulsing blinking cursor */}
+                  {/* 3. Live Streaming words (Tail words typed immediately in real time!) */}
+                  {tailWords.map((word, idx) => (
+                    <span
+                      key={`tail-${idx}-${word.start}`}
+                      className="text-cyan-300 font-semibold animate-word-appear"
+                    >
+                      {(committedWords.length > 0 || openWords.length > 0 || idx > 0) && !word.join ? ' ' : ''}{word.text}
+                    </span>
+                  ))}
+
+                  {/* Pulsing blinking typing cursor */}
                   <span className="inline-block w-1.5 h-4.5 bg-cyan-400 rounded-full animate-cursor-blink self-center ms-1 shadow-[0_0_8px_#22d3ee]" />
                 </>
               )}
