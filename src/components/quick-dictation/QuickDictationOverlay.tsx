@@ -24,7 +24,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 export const QuickDictationOverlay: React.FC = () => {
   const { t, language } = useLanguage();
 
-  const [overlayState, setOverlayState] = useState<'idle' | 'recording' | 'result' | 'pasted' | 'error'>('idle');
+  const [overlayState, setOverlayState] = useState<'recording' | 'result' | 'pasted' | 'error'>('recording');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState<AudioLevelPayload>({
     rms: 0,
@@ -62,20 +62,22 @@ export const QuickDictationOverlay: React.FC = () => {
     tailWordsRef.current = tailWords;
   }, [tailWords]);
 
-  // Load initial state
+  // Check state on mount
   useEffect(() => {
-    invoke<'idle' | 'starting' | 'recording' | 'finalizing' | 'result' | 'cancelled' | 'error'>(
-      'get_quick_dictation_state'
-    )
+    startTimeRef.current = Date.now();
+    invoke<string>('get_quick_dictation_state')
       .then((st) => {
-        if (st === 'recording') {
-          setOverlayState('recording');
-          if (!startTimeRef.current) startTimeRef.current = Date.now();
+        if (st === 'result') {
+          setOverlayState('result');
+        } else if (st === 'error') {
+          setOverlayState('error');
         } else {
-          setOverlayState('idle');
+          setOverlayState('recording');
         }
       })
-      .catch(console.error);
+      .catch(() => {
+        setOverlayState('recording');
+      });
   }, []);
 
   // Keyboard shortcut listener (Escape to close, Ctrl+Enter to paste)
@@ -139,7 +141,16 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uStarted);
 
-      // 2. Partial streaming words (real-time live streaming)
+      // 2. Engine status
+      const uStatus = await listen<{ status: string }>('asr://status', (event) => {
+        if (event.payload.status === 'recording') {
+          setOverlayState('recording');
+          if (!startTimeRef.current) startTimeRef.current = Date.now();
+        }
+      });
+      unlistens.push(uStatus);
+
+      // 3. Partial streaming words (real-time live streaming)
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
         const open = event.payload.open || [];
         const tail = event.payload.tail || [];
@@ -147,10 +158,11 @@ export const QuickDictationOverlay: React.FC = () => {
         openWordsRef.current = open;
         setTailWords(tail);
         tailWordsRef.current = tail;
+        setOverlayState((prev) => (prev !== 'result' ? 'recording' : prev));
       });
       unlistens.push(uPartial);
 
-      // 3. Commit finalized words
+      // 4. Commit finalized words
       const uCommit = await listen<CommitEventPayload>('asr://commit', (event) => {
         if (event.payload.words && event.payload.words.length > 0) {
           setCommittedWords((prev) => {
@@ -162,11 +174,12 @@ export const QuickDictationOverlay: React.FC = () => {
           openWordsRef.current = [];
           setTailWords([]);
           tailWordsRef.current = [];
+          setOverlayState((prev) => (prev !== 'result' ? 'recording' : prev));
         }
       });
       unlistens.push(uCommit);
 
-      // 4. Session finalized (shortcut released or stop triggered)
+      // 5. Session finalized (stop triggered)
       const uFinalized = await listen('quick-dictation://finalized', () => {
         const all = [
           ...committedWordsRef.current,
@@ -208,7 +221,7 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uFinalized);
 
-      // 5. Dismissed / Hidden
+      // 6. Dismissed / Hidden
       const uDismissed = await listen('quick-dictation://dismissed', () => {
         setCommittedWords([]);
         committedWordsRef.current = [];
@@ -216,18 +229,17 @@ export const QuickDictationOverlay: React.FC = () => {
         openWordsRef.current = [];
         setTailWords([]);
         tailWordsRef.current = [];
-        setOverlayState('idle');
       });
       unlistens.push(uDismissed);
 
-      // 6. Errors
+      // 7. Errors
       const uError = await listen<string>('quick-dictation://error', (event) => {
         setErrorMessage(event.payload);
         setOverlayState('error');
       });
       unlistens.push(uError);
 
-      // 7. Audio level
+      // 8. Audio level
       const uLevel = await listen<AudioLevelPayload>('audio://level', (event) => {
         setAudioLevel(event.payload);
       });
@@ -244,7 +256,7 @@ export const QuickDictationOverlay: React.FC = () => {
   // Duration timer
   useEffect(() => {
     if (overlayState === 'recording') {
-      startTimeRef.current = startTimeRef.current || Date.now();
+      if (!startTimeRef.current) startTimeRef.current = Date.now();
       timerRef.current = window.setInterval(() => {
         if (startTimeRef.current) {
           setRecordingSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
@@ -317,28 +329,20 @@ export const QuickDictationOverlay: React.FC = () => {
         <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent pointer-events-none" />
 
         {/* ================= STATE 1: RECORDING / LIVE WORD-BY-WORD STREAM ================= */}
-        {(overlayState === 'recording' || overlayState === 'idle') && (
+        {overlayState === 'recording' && (
           <div className="flex flex-col h-full justify-between">
             {/* Top Header Bar */}
             <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08] text-xs">
               <div className="flex items-center space-x-2 space-x-reverse">
                 <span className="relative flex h-2.5 w-2.5">
-                  {overlayState === 'recording' && (
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  )}
-                  <span
-                    className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                      overlayState === 'recording' ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]' : 'bg-cyan-400'
-                    }`}
-                  ></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-[0_0_8px_#f43f5e]"></span>
                 </span>
                 <span className="text-cyan-300 font-bold text-xs tracking-wide">
-                  {overlayState === 'recording'
-                    ? (language === 'fa' ? 'در حال شنیدن و بازشناسی زنده...' : 'Listening & transcribing live...')
-                    : (language === 'fa' ? 'دیکته صوتی آماده است...' : 'Quick Dictation Ready...')}
+                  {language === 'fa' ? 'در حال شنیدن و بازشناسی زنده...' : 'Listening & transcribing live...'}
                 </span>
                 <span className="font-mono text-slate-400 text-[11px] bg-white/[0.05] px-1.5 py-0.5 rounded" dir="ltr">
-                  {formatDuration(overlayState === 'recording' ? recordingSeconds : 0)}
+                  {formatDuration(recordingSeconds)}
                 </span>
               </div>
 

@@ -210,13 +210,8 @@ impl ShortcutManager {
         let _ = OverlayManager::show(app, true);
 
         // 7. Notify state machine and UI
-        let immediate_stop = self.state_machine.write().on_started();
+        self.state_machine.write().on_started();
         let _ = app.emit("quick-dictation://started", session_id);
-
-        if immediate_stop {
-            log::info!("Shortcut was released during startup; immediately stopping session.");
-            self.stop_quick_dictation(app);
-        }
     }
 
     pub fn cancel_dictation_session(&self, app: &AppHandle) {

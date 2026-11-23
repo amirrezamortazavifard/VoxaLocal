@@ -9,8 +9,8 @@ export const ShortcutsView: React.FC = () => {
   const [settings, setSettings] = useState<QuickDictationSettings>({
     enabled: true,
     shortcut: 'Ctrl+Shift+Space',
-    mode: 'pushToTalk',
-    autoPaste: true,
+    mode: 'toggle',
+    autoPaste: false,
     timeoutSeconds: 15,
     showWaveform: true,
   });

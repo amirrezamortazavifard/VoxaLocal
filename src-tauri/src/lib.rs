@@ -57,7 +57,9 @@ pub fn run() {
 
                 // Load persisted quick dictation settings if available
                 if let Ok(Some(saved_qd_str)) = settings_repo.get("quick_dictation_settings") {
-                    if let Ok(saved_qd) = serde_json::from_str::<QuickDictationSettings>(&saved_qd_str) {
+                    if let Ok(mut saved_qd) = serde_json::from_str::<QuickDictationSettings>(&saved_qd_str) {
+                        // Enforce Toggle mode for desktop modal dictation workflow
+                        saved_qd.mode = crate::shortcuts::state_machine::PttMode::Toggle;
                         log::info!("Restored persisted Quick Dictation settings: {:?}", saved_qd);
                         let _ = shortcut_manager.update_settings(&app.handle(), saved_qd);
                     }
