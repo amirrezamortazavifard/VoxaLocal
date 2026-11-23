@@ -5,18 +5,17 @@ import {
   Copy,
   Check,
   ClipboardPaste,
-  ExternalLink,
   X,
   Mic,
   Square,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 import {
   AudioLevelPayload,
   CommitEventPayload,
   PartialEventPayload,
   WordItem,
-  QuickDictationSettings,
 } from '../../types/asr';
 import { wordsToPlainString } from '../../utils/exportFormats';
 import { formatPersianTranscript } from '../../utils/persianTypography';
@@ -43,23 +42,13 @@ export const QuickDictationOverlay: React.FC = () => {
   const [pasted, setPasted] = useState(false);
   const [waveTick, setWaveTick] = useState(0);
 
-  const [settings, setSettings] = useState<QuickDictationSettings>({
-    enabled: true,
-    shortcut: 'Ctrl+Shift+B',
-    mode: 'toggle',
-    autoPaste: true,
-    timeoutSeconds: 15,
-    showWaveform: true,
-  });
-
   const committedWordsRef = useRef<WordItem[]>([]);
   const openWordsRef = useRef<WordItem[]>([]);
   const tailWordsRef = useRef<WordItem[]>([]);
   const startTimeRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
-  const autoCloseTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [autoCloseRemaining, setAutoCloseRemaining] = useState<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     committedWordsRef.current = committedWords;
@@ -73,12 +62,8 @@ export const QuickDictationOverlay: React.FC = () => {
     tailWordsRef.current = tailWords;
   }, [tailWords]);
 
-  // Load Quick Dictation settings
+  // Load initial state
   useEffect(() => {
-    invoke<QuickDictationSettings>('get_quick_dictation_settings')
-      .then((s) => setSettings(s))
-      .catch((err) => console.error('Failed to load quick dictation settings:', err));
-
     invoke<'idle' | 'starting' | 'recording' | 'finalizing' | 'result' | 'cancelled' | 'error'>(
       'get_quick_dictation_state'
     )
@@ -93,17 +78,20 @@ export const QuickDictationOverlay: React.FC = () => {
       .catch(console.error);
   }, []);
 
-  // Keyboard shortcut listener (Escape to cancel)
+  // Keyboard shortcut listener (Escape to close, Ctrl+Enter to paste)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         handleCancel();
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && overlayState === 'result') {
+        e.preventDefault();
+        handlePaste();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [overlayState, resultText]);
 
   // Waveform animation ticker
   useEffect(() => {
@@ -121,12 +109,21 @@ export const QuickDictationOverlay: React.FC = () => {
     }
   }, [committedWords, openWords, tailWords]);
 
-  // Listen to IPC events
+  // Focus textarea when entering result mode
+  useEffect(() => {
+    if (overlayState === 'result' && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.selectionStart = textareaRef.current.value.length;
+      textareaRef.current.selectionEnd = textareaRef.current.value.length;
+    }
+  }, [overlayState]);
+
+  // Listen to IPC events from Rust core
   useEffect(() => {
     let unlistens: Array<() => void> = [];
 
     async function initListeners() {
-      // 1. Session started by global shortcut or button
+      // 1. Session started
       const uStarted = await listen<string>('quick-dictation://started', () => {
         setCommittedWords([]);
         committedWordsRef.current = [];
@@ -139,12 +136,10 @@ export const QuickDictationOverlay: React.FC = () => {
         setOverlayState('recording');
         setRecordingSeconds(0);
         startTimeRef.current = Date.now();
-        if (autoCloseTimerRef.current) clearInterval(autoCloseTimerRef.current);
-        setAutoCloseRemaining(null);
       });
       unlistens.push(uStarted);
 
-      // 2. Partial streaming words (real-time live streaming hypothesis)
+      // 2. Partial streaming words (real-time live streaming)
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
         const open = event.payload.open || [];
         const tail = event.payload.tail || [];
@@ -173,7 +168,6 @@ export const QuickDictationOverlay: React.FC = () => {
 
       // 4. Session finalized (shortcut released or stop triggered)
       const uFinalized = await listen('quick-dictation://finalized', () => {
-        // Collect all words without losing any words still in open or tail
         const all = [
           ...committedWordsRef.current,
           ...openWordsRef.current,
@@ -186,22 +180,7 @@ export const QuickDictationOverlay: React.FC = () => {
         openWordsRef.current = [];
         setTailWords([]);
         tailWordsRef.current = [];
-
-        invoke<QuickDictationSettings>('get_quick_dictation_settings')
-          .then((cfg) => {
-            if (cfg.autoPaste && formatted.trim().length > 0) {
-              setOverlayState('pasted');
-              invoke('trigger_quick_dictation_paste', { text: formatted });
-              setTimeout(() => {
-                invoke('dismiss_quick_dictation');
-              }, 700);
-            } else {
-              setOverlayState('result');
-            }
-          })
-          .catch(() => {
-            setOverlayState('result');
-          });
+        setOverlayState('result');
 
         // Save session to history as quick_dictation
         if (all.length > 0) {
@@ -237,6 +216,7 @@ export const QuickDictationOverlay: React.FC = () => {
         openWordsRef.current = [];
         setTailWords([]);
         tailWordsRef.current = [];
+        setOverlayState('idle');
       });
       unlistens.push(uDismissed);
 
@@ -278,25 +258,6 @@ export const QuickDictationOverlay: React.FC = () => {
     };
   }, [overlayState]);
 
-  // Auto-close timer in result mode
-  useEffect(() => {
-    if (overlayState === 'result' && settings.timeoutSeconds > 0) {
-      let remaining = settings.timeoutSeconds;
-      setAutoCloseRemaining(remaining);
-      autoCloseTimerRef.current = window.setInterval(() => {
-        remaining -= 1;
-        setAutoCloseRemaining(remaining);
-        if (remaining <= 0) {
-          if (autoCloseTimerRef.current) clearInterval(autoCloseTimerRef.current);
-          handleCancel();
-        }
-      }, 1000);
-    }
-    return () => {
-      if (autoCloseTimerRef.current) clearInterval(autoCloseTimerRef.current);
-    };
-  }, [overlayState, settings.timeoutSeconds]);
-
   const handleStop = async () => {
     try {
       await invoke('stop_quick_dictation_session');
@@ -310,6 +271,14 @@ export const QuickDictationOverlay: React.FC = () => {
       await invoke('cancel_quick_dictation_session');
     } catch (err) {
       console.error('Failed to cancel dictation:', err);
+    }
+  };
+
+  const handleRecordAgain = async () => {
+    try {
+      await invoke('start_quick_dictation_session');
+    } catch (err) {
+      console.error('Failed to record again:', err);
     }
   };
 
@@ -330,78 +299,77 @@ export const QuickDictationOverlay: React.FC = () => {
     }
   };
 
-  const handleOpenInStudio = async () => {
-    try {
-      await invoke('open_in_studio');
-    } catch (err) {
-      console.error('Failed to open studio:', err);
-    }
-  };
-
   // Generate 36 dynamic equalizer bars
   const totalBars = 36;
   const bars = Array.from({ length: totalBars });
 
   const hasAnyWords = committedWords.length > 0 || openWords.length > 0 || tailWords.length > 0;
+  const wordCount = resultText.trim().length > 0 ? resultText.trim().split(/\s+/).length : 0;
 
   return (
-    <div className="w-screen h-screen p-2 select-none overflow-hidden flex items-center justify-center bg-transparent">
-      {/* Sleek Floating Pill Container - 100% Solid Opaque Background (Zero Bleed-through) */}
-      <div className="w-full max-w-[540px] h-[175px] bg-[#1a1b1e] border border-slate-700/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] flex flex-col justify-between p-3.5 relative overflow-hidden text-slate-100 font-sans">
-        {/* Subtle top inner light highlight */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent pointer-events-none" />
+    <div
+      className="w-screen h-screen p-2 select-none overflow-hidden flex items-center justify-center bg-transparent"
+      dir={language === 'fa' ? 'rtl' : 'ltr'}
+    >
+      {/* Sleek Floating Pill Container - Glassmorphic Bottom Desktop Modal */}
+      <div className="w-full max-w-[600px] h-[224px] bg-[#12141a]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_25px_rgba(6,182,212,0.15)] flex flex-col justify-between p-3.5 relative overflow-hidden text-slate-100 font-sans">
+        {/* Subtle top ambient cyan light highlight */}
+        <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent pointer-events-none" />
 
         {/* ================= STATE 1: RECORDING / LIVE WORD-BY-WORD STREAM ================= */}
         {(overlayState === 'recording' || overlayState === 'idle') && (
           <div className="flex flex-col h-full justify-between">
-            {/* Top Header Bar: Status, Duration & Close Button (X) */}
+            {/* Top Header Bar */}
             <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08] text-xs">
-              {/* Left: Recording Pulse & Status */}
               <div className="flex items-center space-x-2 space-x-reverse">
                 <span className="relative flex h-2.5 w-2.5">
                   {overlayState === 'recording' && (
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                   )}
-                  <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${overlayState === 'recording' ? 'bg-rose-500' : 'bg-cyan-400'}`}></span>
+                  <span
+                    className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                      overlayState === 'recording' ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]' : 'bg-cyan-400'
+                    }`}
+                  ></span>
                 </span>
                 <span className="text-cyan-300 font-bold text-xs tracking-wide">
                   {overlayState === 'recording'
                     ? (language === 'fa' ? 'در حال شنیدن و بازشناسی زنده...' : 'Listening & transcribing live...')
                     : (language === 'fa' ? 'دیکته صوتی آماده است...' : 'Quick Dictation Ready...')}
                 </span>
-                <span className="font-mono text-slate-400 text-[11px]" dir="ltr">
-                  ({formatDuration(overlayState === 'recording' ? recordingSeconds : 0)})
+                <span className="font-mono text-slate-400 text-[11px] bg-white/[0.05] px-1.5 py-0.5 rounded" dir="ltr">
+                  {formatDuration(overlayState === 'recording' ? recordingSeconds : 0)}
                 </span>
               </div>
 
-              {/* Right: Dedicated Close Button (X) */}
+              {/* Close Button */}
               <button
                 onClick={handleCancel}
                 className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 transition-all cursor-pointer"
-                title={language === 'fa' ? 'بستن و لغو (Esc)' : 'Close and Cancel (Esc)'}
+                title={language === 'fa' ? 'بستن (Esc)' : 'Close (Esc)'}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Center Area: Real-Time Word Stream (Telegram Style / TinyASR Native) */}
+            {/* Center Area: Real-Time Streaming Output */}
             <div
               ref={scrollRef}
-              className="flex-1 my-1 px-2 overflow-y-auto text-sm md:text-base leading-relaxed flex flex-wrap gap-x-0.5 gap-y-1 content-start items-center"
+              className="flex-1 my-1.5 px-2.5 py-1 overflow-y-auto text-sm md:text-base leading-relaxed flex flex-wrap gap-x-1 gap-y-1 content-start items-center rounded-xl bg-[#0b0c10]/70 border border-white/5 shadow-inner"
               dir="auto"
             >
               {!hasAnyWords ? (
-                <div className="flex items-center justify-center space-x-2 space-x-reverse text-slate-400 text-xs py-2 w-full animate-pulse select-none">
+                <div className="flex items-center justify-center space-x-2 space-x-reverse text-slate-400 text-xs py-3 w-full animate-pulse select-none">
                   <Mic className="w-4 h-4 text-cyan-400" />
                   <span>
                     {language === 'fa'
                       ? 'صحبت کنید؛ کلمات شما بی‌درنگ و کلمه به کلمه اینجا تایپ می‌شوند...'
-                      : 'Speak now; your words will be typed here in real time...'}
+                      : 'Speak now; your words will appear here in real-time...'}
                   </span>
                 </div>
               ) : (
                 <>
-                  {/* 1. Finalized Committed words (clean crisp solid text) */}
+                  {/* 1. Finalized Committed words */}
                   {committedWords.map((word, idx) => (
                     <span
                       key={`comm-${idx}-${word.start}`}
@@ -415,7 +383,7 @@ export const QuickDictationOverlay: React.FC = () => {
                   {openWords.map((word, idx) => (
                     <span
                       key={`open-${idx}-${word.start}`}
-                      className="text-slate-100 font-medium tracking-normal"
+                      className="text-slate-200 font-medium tracking-normal"
                     >
                       {(committedWords.length > 0 || idx > 0) && !word.join ? ' ' : ''}{word.text}
                     </span>
@@ -425,7 +393,7 @@ export const QuickDictationOverlay: React.FC = () => {
                   {tailWords.map((word, idx) => (
                     <span
                       key={`tail-${idx}-${word.start}`}
-                      className="text-cyan-300 font-semibold animate-word-appear"
+                      className="text-cyan-300 font-semibold animate-word-appear drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]"
                     >
                       {(committedWords.length > 0 || openWords.length > 0 || idx > 0) && !word.join ? ' ' : ''}{word.text}
                     </span>
@@ -445,7 +413,6 @@ export const QuickDictationOverlay: React.FC = () => {
                   const normDist = Math.abs(i - 17.5) / 18.0;
                   const envelope = Math.pow(Math.cos(normDist * Math.PI * 0.48), 1.1);
 
-                  // Normalized audio energy from dB and RMS (sensitive to any mic)
                   const dbEnergy = Math.max(0, Math.min(1, (audioLevel.db + 58.0) / 45.0));
                   const rmsEnergy = Math.min(1, audioLevel.rms * 35.0);
                   const speechEnergy = Math.max(dbEnergy, rmsEnergy);
@@ -474,20 +441,20 @@ export const QuickDictationOverlay: React.FC = () => {
                 })}
               </div>
 
-              {/* Right Action Buttons */}
+              {/* Action Buttons */}
               <div className="flex items-center space-x-2 space-x-reverse">
                 <button
                   onClick={handleStop}
-                  className="flex items-center space-x-1.5 space-x-reverse px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
-                  title="Stop recording"
+                  className="flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/20 transition-all cursor-pointer"
+                  title="Stop recording and review"
                 >
                   <Square className="w-3 h-3 fill-current" />
-                  <span>{language === 'fa' ? 'توقف و درج' : 'Stop & Paste'}</span>
+                  <span>{language === 'fa' ? 'توقف و بازبینی' : 'Stop & Review'}</span>
                 </button>
 
                 <button
                   onClick={handleCancel}
-                  className="flex items-center space-x-1 space-x-reverse px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-slate-200 border border-white/10 text-xs transition-colors cursor-pointer"
+                  className="flex items-center space-x-1 space-x-reverse px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-slate-200 border border-white/10 text-xs transition-colors cursor-pointer"
                   title="Cancel (Esc)"
                 >
                   <span>{language === 'fa' ? 'لغو' : 'Cancel'}</span>
@@ -501,11 +468,11 @@ export const QuickDictationOverlay: React.FC = () => {
         {/* ================= STATE 2: AUTO-PASTED NOTIFICATION ================= */}
         {overlayState === 'pasted' && (
           <div className="flex flex-col h-full items-center justify-center text-center p-3 animate-fade-in">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center mb-2">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center mb-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
               <Check className="w-5 h-5 text-emerald-400" />
             </div>
             <p className="text-sm font-bold text-slate-100">
-              {language === 'fa' ? 'متن با موفقیت جای‌گذاری شد' : 'Pasted into application'}
+              {language === 'fa' ? 'متن با موفقیت در برنامه جای‌گذاری شد' : 'Pasted into application'}
             </p>
             <p className="text-xs text-slate-300 truncate max-w-md mt-1" dir="auto">
               «{resultText}»
@@ -513,71 +480,84 @@ export const QuickDictationOverlay: React.FC = () => {
           </div>
         )}
 
-        {/* ================= STATE 3: RESULT REVIEW MODE ================= */}
+        {/* ================= STATE 3: RESULT REVIEW & EDIT MODE ================= */}
         {overlayState === 'result' && (
           <div className="flex flex-col h-full justify-between">
-            {/* Header */}
+            {/* Header: Status, Stats, Close */}
             <div className="flex items-center justify-between text-xs pb-1 border-b border-white/[0.08]">
-              <span className="text-cyan-300 font-bold text-xs flex items-center space-x-1.5 space-x-reverse">
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{t('dictationComplete')}</span>
-              </span>
-
               <div className="flex items-center space-x-2 space-x-reverse">
-                {autoCloseRemaining !== null && autoCloseRemaining > 0 && (
-                  <span className="text-[10px] font-mono text-slate-400 bg-white/[0.05] px-1.5 py-0.5 rounded">
-                    {autoCloseRemaining}s
-                  </span>
-                )}
-                <button
-                  onClick={handleCancel}
-                  className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 transition-colors cursor-pointer"
-                  title="Close"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Editable Text Area */}
-            <textarea
-              value={resultText}
-              onChange={(e) => {
-                setResultText(e.target.value);
-                if (autoCloseTimerRef.current) clearInterval(autoCloseTimerRef.current);
-                setAutoCloseRemaining(null);
-              }}
-              className="flex-1 my-1.5 text-xs md:text-sm text-slate-100 leading-relaxed p-2 bg-[#121316] rounded-xl border border-white/10 focus:outline-none focus:border-cyan-500/50 resize-none"
-              dir="auto"
-              placeholder="متن رونویسی شده..."
-            />
-
-            {/* Actions */}
-            <div className="flex items-center justify-between pt-1 border-t border-white/[0.08]">
-              <div className="flex items-center space-x-1.5 space-x-reverse">
-                <button
-                  onClick={handlePaste}
-                  className="flex items-center space-x-1 space-x-reverse px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
-                >
-                  <ClipboardPaste className="w-3.5 h-3.5" />
-                  <span>{pasted ? t('pasted') : t('pasteToApp')}</span>
-                </button>
-
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-lg bg-[#28292d] hover:bg-[#323439] text-slate-200 text-xs transition-colors border border-white/10 cursor-pointer"
-                >
-                  {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copied ? t('copied') : t('copyText')}</span>
-                </button>
+                <span className="text-cyan-300 font-bold text-xs flex items-center space-x-1.5 space-x-reverse">
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{t('dictationComplete')}</span>
+                </span>
+                <span className="text-[10px] text-slate-400 bg-white/[0.05] px-2 py-0.5 rounded-full border border-white/5">
+                  {wordCount} {t('wordCount')}
+                </span>
               </div>
 
               <button
-                onClick={handleOpenInStudio}
-                className="flex items-center space-x-1 space-x-reverse text-[11px] text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                onClick={handleCancel}
+                className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 transition-colors cursor-pointer"
+                title={t('closeModal')}
               >
-                <span>{t('openInStudio')}</span>
-                <ExternalLink className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Editable Text Area: User can edit freely */}
+            <textarea
+              ref={textareaRef}
+              value={resultText}
+              onChange={(e) => setResultText(e.target.value)}
+              className="flex-1 my-1.5 text-xs md:text-sm text-slate-100 leading-relaxed p-2.5 bg-[#0a0b0e] rounded-xl border border-white/10 focus:outline-none focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/30 resize-none font-sans shadow-inner transition-all"
+              dir="auto"
+              placeholder={language === 'fa' ? 'متن رونویسی شده (امکان ویرایش مستقیم)...' : 'Transcribed text (editable)...'}
+            />
+
+            {/* Action Buttons: Copy, Paste, Record Again, Close */}
+            <div className="flex items-center justify-between pt-1 border-t border-white/[0.08]">
+              <div className="flex items-center space-x-2 space-x-reverse">
+                {/* 1. Copy Text */}
+                <button
+                  onClick={handleCopy}
+                  className={`flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                    copied
+                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-emerald-500/20'
+                      : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-500/20'
+                  }`}
+                  title="Copy to clipboard"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? t('copied') : t('copyText')}</span>
+                </button>
+
+                {/* 2. Paste to Active Application */}
+                <button
+                  onClick={handlePaste}
+                  className="flex items-center space-x-1 space-x-reverse px-2.5 py-1.5 rounded-xl bg-[#23252b] hover:bg-[#2c2e36] text-slate-200 text-xs transition-colors border border-white/10 cursor-pointer"
+                  title="Paste directly into the application you were using (Ctrl+Enter)"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>{pasted ? t('pasted') : t('pasteToApp')}</span>
+                </button>
+
+                {/* 3. Record Again */}
+                <button
+                  onClick={handleRecordAgain}
+                  className="flex items-center space-x-1 space-x-reverse px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 text-xs transition-colors border border-white/10 cursor-pointer"
+                  title="Start another voice recording"
+                >
+                  <RotateCcw className="w-3 h-3 text-amber-400" />
+                  <span>{t('recordAgain')}</span>
+                </button>
+              </div>
+
+              {/* Dismiss / Close */}
+              <button
+                onClick={handleCancel}
+                className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors px-2 py-1 cursor-pointer"
+              >
+                <span>{t('closeModal')}</span>
               </button>
             </div>
           </div>
@@ -589,7 +569,7 @@ export const QuickDictationOverlay: React.FC = () => {
             <div className="flex items-center justify-between text-xs pb-1 border-b border-rose-500/20">
               <span className="text-rose-400 font-bold text-xs flex items-center space-x-1.5 space-x-reverse">
                 <AlertCircle className="w-4 h-4 text-rose-400" />
-                <span>خطای دیکته صوتی</span>
+                <span>{language === 'fa' ? 'خطای دیکته صوتی' : 'Dictation Error'}</span>
               </span>
               <button
                 onClick={handleCancel}
@@ -600,7 +580,7 @@ export const QuickDictationOverlay: React.FC = () => {
             </div>
 
             <div className="flex-1 my-2 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 font-mono overflow-y-auto">
-              {errorMessage || 'خطایی در راه‌اندازی ضبط رخ داده است.'}
+              {errorMessage || (language === 'fa' ? 'خطایی در راه‌اندازی ضبط رخ داده است.' : 'An error occurred during dictation.')}
             </div>
 
             <div className="flex justify-end pt-1">
@@ -608,7 +588,7 @@ export const QuickDictationOverlay: React.FC = () => {
                 onClick={handleCancel}
                 className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium cursor-pointer"
               >
-                بستن (Close)
+                {language === 'fa' ? 'بستن (Close)' : 'Close'}
               </button>
             </div>
           </div>

@@ -205,9 +205,9 @@ impl ShortcutManager {
             return;
         }
 
-        // 6. Modal overlay temporarily kept hidden as requested by user to focus on main window real-time ASR
-        // OverlayManager::center_on_active_monitor(app);
-        // let _ = OverlayManager::show(app, true);
+        // 6. Modal overlay centered at bottom of active desktop monitor and shown
+        OverlayManager::center_on_active_monitor(app);
+        let _ = OverlayManager::show(app, true);
 
         // 7. Notify state machine and UI
         let immediate_stop = self.state_machine.write().on_started();
@@ -242,8 +242,9 @@ impl ShortcutManager {
 
         self.state_machine.write().on_finalized();
 
-        // Overlay temporarily kept hidden as requested by user
-        // let _ = OverlayManager::show(app, false);
+        // Keep overlay shown and focused so the user can inspect, edit, and copy the text
+        OverlayManager::center_on_active_monitor(app);
+        let _ = OverlayManager::show(app, false);
         let _ = app.emit("quick-dictation://finalized", ());
     }
 

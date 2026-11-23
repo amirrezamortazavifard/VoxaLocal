@@ -26,17 +26,7 @@ const MainApp: React.FC = () => {
   const {
     modelInfo,
     settings,
-    status,
-    activeLanguage,
     audioLevel,
-    recordingDuration,
-    committedWords,
-    openWords,
-    tailWords,
-    allCurrentWords,
-    startRecording,
-    stopRecording,
-    clearTranscript,
     loadModels,
     unloadModels,
     refreshModelStatus,
@@ -60,14 +50,15 @@ const MainApp: React.FC = () => {
 
   const handleSaveToHistory = async (title: string, text: string, srt: string) => {
     const locale = language === 'fa' ? 'fa-IR' : 'en-US';
+    const wordsCount = text.trim() ? text.trim().split(/\s+/).length : 0;
     const record = {
       id: crypto.randomUUID(),
       title,
       text,
       srtContent: srt,
-      language: activeLanguage,
-      durationSecs: recordingDuration || 1.0,
-      wordCount: allCurrentWords.length,
+      language: language === 'fa' ? 'fa' : 'en',
+      durationSecs: 1.0,
+      wordCount: wordsCount,
       createdAt: new Date().toLocaleDateString(locale, {
         year: 'numeric',
         month: 'long',
@@ -105,23 +96,15 @@ const MainApp: React.FC = () => {
           </div>
         )}
 
-        {/* Tab 1: Accueil / Home (Murmure Dashboard matching Image 2) */}
+        {/* Tab 1: Accueil / Home */}
         {activeTab === 'home' && (
           <MurmureHome
             audioLevel={audioLevel}
             quickDictationSettings={qdSettings}
             onOpenHistoryTab={() => setActiveTab('full_history')}
-            status={status}
-            recordingDuration={recordingDuration}
-            committedWords={committedWords}
-            openWords={openWords}
-            tailWords={tailWords}
-            allCurrentWords={allCurrentWords}
-            startRecording={startRecording}
-            stopRecording={stopRecording}
-            clearTranscript={clearTranscript}
-            activeLanguage={activeLanguage}
-            onSaveToHistory={handleSaveToHistory}
+            onOpenFileTranscribeTab={() => setActiveTab('file_transcribe')}
+            onOpenShortcutsTab={() => setActiveTab('shortcuts')}
+            onOpenSettingsTab={() => setActiveTab('system')}
           />
         )}
 
