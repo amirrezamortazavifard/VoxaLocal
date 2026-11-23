@@ -263,23 +263,23 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
       : livePlainText;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="w-full max-w-4xl mx-auto space-y-4">
       {/* File Upload / Picker Card */}
-      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div className="flex items-center space-x-3 space-x-reverse">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
-              <FileAudio className="w-5 h-5 text-cyan-400" />
+      <div className="bg-navy-900/60 border border-slate-800/80 rounded-xl p-4 sm:p-5 backdrop-blur-md shadow-xl">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex items-center space-x-2.5 space-x-reverse">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+              <FileAudio className="w-4 h-4 text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-100">{t('fileTransTitle')}</h2>
-              <p className="text-xs text-slate-400">{t('fileTransSubtitle')}</p>
+              <h2 className="text-sm sm:text-base font-bold text-slate-100">{t('fileTransTitle')}</h2>
+              <p className="text-[11px] sm:text-xs text-slate-400">{t('fileTransSubtitle')}</p>
             </div>
           </div>
 
           {durationSecs > 0 && (
-            <div className="flex items-center space-x-2 space-x-reverse px-3 py-1.5 rounded-xl bg-navy-950/80 border border-slate-800 text-xs text-slate-300 font-mono">
-              <Clock className="w-3.5 h-3.5 text-cyan-400" />
+            <div className="flex items-center space-x-1.5 space-x-reverse px-2.5 py-1 rounded-lg bg-navy-950/80 border border-slate-800 text-[11px] text-slate-300 font-mono">
+              <Clock className="w-3 h-3 text-cyan-400" />
               <span>{t('audioDuration')}:</span>
               <span className="text-cyan-300 font-semibold" dir="ltr">
                 {formatTime(durationSecs)}
@@ -291,34 +291,34 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
         {/* Dropzone container */}
         <div
           onClick={handleSelectFile}
-          className="border-2 border-dashed border-slate-700/80 hover:border-cyan-500/60 bg-navy-950/70 hover:bg-navy-950/90 p-6 rounded-2xl cursor-pointer transition-all flex flex-col items-center justify-center text-center mt-3 shadow-inner group"
+          className="border-2 border-dashed border-slate-700/80 hover:border-cyan-500/60 bg-navy-950/70 hover:bg-navy-950/90 p-4 sm:p-6 rounded-xl cursor-pointer transition-all flex flex-col items-center justify-center text-center mt-2 shadow-inner group"
         >
-          <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-2.5 shadow-lg shadow-cyan-500/10 group-hover:scale-105 transition-transform">
-            <UploadCloud className="w-6 h-6 text-cyan-400" />
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-2 shadow-lg shadow-cyan-500/10 group-hover:scale-105 transition-transform">
+            <UploadCloud className="w-5 h-5 text-cyan-400" />
           </div>
           {fileName ? (
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-cyan-300 font-mono" dir="ltr">
+              <p className="text-xs sm:text-sm font-semibold text-cyan-300 font-mono" dir="ltr">
                 {fileName}
               </p>
-              <p className="text-xs text-slate-500 max-w-lg truncate" dir="ltr">
+              <p className="text-[11px] text-slate-500 max-w-lg truncate" dir="ltr">
                 {filePath}
               </p>
-              <span className="inline-block mt-2 text-[11px] text-cyan-400 underline font-medium">
+              <span className="inline-block mt-1 text-[11px] text-cyan-400 underline font-medium">
                 {t('changeFile')}
               </span>
             </div>
           ) : (
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-slate-200">{t('dropzoneTitle')}</p>
-              <p className="text-xs text-slate-500">{t('dropzoneSubtitle')}</p>
+            <div className="space-y-0.5">
+              <p className="text-xs sm:text-sm font-medium text-slate-200">{t('dropzoneTitle')}</p>
+              <p className="text-[11px] text-slate-500">{t('dropzoneSubtitle')}</p>
             </div>
           )}
         </div>
 
         {/* Telegram-style Voice Message Waveform Visualizer */}
         {(waveformPeaks.length > 0 || isLoadingWaveform) && (
-          <div className="mt-5 p-4 rounded-xl bg-navy-950/90 border border-slate-800/90 space-y-3 shadow-inner">
+          <div className="mt-4 p-3.5 rounded-xl bg-navy-950/90 border border-slate-800/90 space-y-2.5 shadow-inner">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center space-x-2 space-x-reverse">
                 <span className="text-slate-400 font-medium">{t('waveformProgress')}</span>
@@ -343,7 +343,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
             </div>
 
             {/* Telegram-style Variable Height Vertical Bars */}
-            <div className="flex items-center justify-between gap-[3px] h-12 px-2 py-1 bg-navy-950/60 rounded-lg overflow-hidden border border-slate-800/60 relative">
+            <div className="flex items-center justify-between gap-[2px] h-11 px-2 py-1 bg-navy-950/60 rounded-lg overflow-hidden border border-slate-800/60 relative">
               {isLoadingWaveform ? (
                 <div className="w-full flex items-center justify-center text-xs text-slate-500 animate-pulse">
                   در حال استخراج امواج صوتی فایل...
@@ -353,7 +353,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
                   const barProgress = idx / Math.max(1, waveformPeaks.length - 1);
                   const isDone = barProgress <= progress || progress >= 0.999;
                   // Height scale: 15% to 100% of container
-                  const heightPx = Math.max(8, Math.round(peak * 38));
+                  const heightPx = Math.max(6, Math.round(peak * 34));
 
                   return (
                     <div
@@ -395,7 +395,7 @@ export const FileTranscription: React.FC<FileTranscriptionProps> = ({
         )}
 
         {/* Settings Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-5 border-t border-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-3.5 border-t border-slate-800">
           <div>
             <label className="text-xs text-slate-400 block mb-1">{t('transcriptionLang')}</label>
             <select

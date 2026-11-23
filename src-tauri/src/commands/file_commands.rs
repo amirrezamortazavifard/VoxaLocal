@@ -96,8 +96,13 @@ pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
     // Native Opus decoder path for OGG/Opus voice messages (Telegram, WhatsApp, etc.)
     if track.codec_params.codec == CODEC_TYPE_OPUS {
         log::info!("Decoding Ogg/Opus audio track using native Opus decoder (channels: {channels})");
-        let mut opus_decoder = opus_decoder::OpusDecoder::new(48000, channels)
-            .map_err(|e| format!("Failed to create Opus decoder: {e:?}"))?;
+        let channels_type = if channels == 1 {
+            opus::Channels::Mono
+        } else {
+            opus::Channels::Stereo
+        };
+        let mut opus_decoder = opus::Decoder::new(48000, channels_type)
+            .map_err(|e| format!("Failed to create Opus decoder: {e}"))?;
         let mut mono_samples = Vec::new();
 
         loop {

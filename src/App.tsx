@@ -80,7 +80,7 @@ const MainApp: React.FC = () => {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Workspace Body */}
-      <main className="flex-1 flex flex-col h-full bg-[#111215] overflow-hidden relative">
+      <main className="flex-1 flex flex-col h-full bg-[#111215] overflow-hidden relative min-w-0">
         {errorMessage && (
           <div className="m-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between shadow-lg">
             <div className="flex items-center space-x-2 space-x-reverse">
@@ -140,7 +140,7 @@ const MainApp: React.FC = () => {
 
         {/* Tab 9: File Transcription */}
         {activeTab === 'file_transcribe' && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-5xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 w-full min-w-0">
             <FileTranscription
               onSaveToHistory={handleSaveToHistory}
               isModelLoaded={!!modelInfo?.isLoaded}
@@ -150,7 +150,7 @@ const MainApp: React.FC = () => {
 
         {/* Tab 10: Full History */}
         {activeTab === 'full_history' && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-5xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 w-full min-w-0">
             <HistoryView />
           </div>
         )}
