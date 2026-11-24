@@ -25,8 +25,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -42,13 +40,13 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: 'src-tauri'
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libssl-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libssl-dev cmake build-essential
 
       - name: Install frontend dependencies
         run: npm ci
@@ -65,18 +63,23 @@ jobs:
             
             Welcome to **VoxaLocal**, the 100% offline Persian and English Speech Recognition Studio!
             
+            ### 🧠 Zero-Setup Bundled AI Models
+            All installer packages come with pre-packaged Persian-English Zipformer2 & Silero VAD AI models.
+            **No manual downloads or configuration required** — simply install and start dictating right away!
+            
             ### 📦 Download Assets
-            - **Windows**: Download the `.exe` (NSIS setup) or `.msi` (WiX enterprise installer).
+            - **Windows**: Download the `.exe` (NSIS setup installer) or `.msi` (WiX enterprise installer).
             - **macOS**: Download the `.dmg` installer (Universal binary supporting Apple Silicon M-series & Intel).
             - **Linux**: Download the `.AppImage` (portable standalone) or `.deb` (Debian/Ubuntu).
             
             ### 🚀 Highlights
-            - 100% Offline & Private (No telemetry, no cloud APIs).
-            - Powered by native TinyASR int4 SIMD Zipformer2 engine.
-            - Streaming recognition + Full-context re-decoding.
-            - Silero VAD v5 voice activity detection.
-            - Audio file transcription (WAV, MP3, FLAC, M4A) with SRT subtitle export.
-            - Persian typography harmonizer (Smart ZWNJ).
+            - **100% Offline & Private**: Zero network access, zero cloud telemetry, complete on-device privacy.
+            - **Global Push-to-Talk / Toggle Dictation**: Trigger with `Ctrl + Shift + B` from any desktop app.
+            - **Native TinyASR int4 SIMD**: Zipformer2 streaming transducer with full-context re-decoding.
+            - **Silero VAD v5**: Fast, accurate speech/silence detection.
+            - **Audio File Transcription**: Transcribe WAV, MP3, FLAC, M4A, and OGG (Opus) files with live Telegram-style waveform timeline and real-time word streaming.
+            - **Persian Typography Normalizer**: Smart ZWNJ (half-space) and character unification.
+            - **Multi-Format Export**: Copy instantly, or export as Subtitles (`.srt`), Plain Text (`.txt`), or Timestamped JSON.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

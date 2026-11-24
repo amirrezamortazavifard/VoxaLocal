@@ -7,6 +7,8 @@ dist-ssr/
 # Rust / Cargo
 src-tauri/target/
 vendor/tinyasr/target/
+vendor/tinyasr/models/
+vendor/tinyasr/web/
 target/
 **/*.rs.bk
 Cargo.lock.bak

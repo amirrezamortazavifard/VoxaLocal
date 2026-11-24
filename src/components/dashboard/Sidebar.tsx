@@ -122,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               <div className="truncate">
                 <h1 className="text-sm font-bold text-white tracking-wide truncate">VoxaLocal</h1>
                 <p className="text-[10px] text-slate-400 font-mono" dir="ltr">
-                  v0.1.0 Offline
+                  v1.0.0 Offline
                 </p>
               </div>
             </div>
@@ -493,7 +493,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               <RefreshCw className="w-3 h-3 text-emerald-400" />
               <span className="text-slate-400">{t('checkUpdates')}</span>
             </div>
-            <span className="font-mono text-[10px] text-slate-500">v0.1.0</span>
+            <span className="font-mono text-[10px] text-slate-500">v1.0.0</span>
           </div>
 
           {/* Language Switcher Pill */}

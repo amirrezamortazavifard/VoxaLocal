@@ -5,7 +5,7 @@ export const translations = {
     // Brand & Header
     appTitle: 'VoxaLocal',
     appSubtitle: 'استودیوی بومی بازشناسی گفتار آفلاین (TinyASR)',
-    versionBadge: 'v0.1.0 آفلاین',
+    versionBadge: 'v1.0.0 آفلاین',
     offlineBadge: 'آفلاین ۱۰۰٪',
     modelLoaded: 'مدل بارگذاری شد',
     modelReady: 'آماده بارگذاری',
@@ -228,7 +228,7 @@ export const translations = {
     // Brand & Header
     appTitle: 'VoxaLocal',
     appSubtitle: 'Offline Speech Recognition Studio (TinyASR)',
-    versionBadge: 'v0.1.0 Offline',
+    versionBadge: 'v1.0.0 Offline',
     offlineBadge: '100% Offline',
     modelLoaded: 'Model Loaded',
     modelReady: 'Ready to Load',

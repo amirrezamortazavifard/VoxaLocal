@@ -30,7 +30,7 @@ export const AboutView: React.FC = () => {
           <div className="flex items-center justify-center md:justify-start space-x-2.5 space-x-reverse">
             <h2 className="text-2xl font-bold text-white">VoxaLocal</h2>
             <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-mono font-semibold" dir="ltr">
-              v0.1.0 Offline
+              v1.0.0 Offline
             </span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">

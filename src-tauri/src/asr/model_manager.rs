@@ -74,6 +74,60 @@ impl ModelManager {
         manager
     }
 
+    pub fn auto_unpack_bundled_models(&self, search_paths: &[std::path::PathBuf]) -> bool {
+        let dest_asr = self.models_dir.join("en-fa.tzf");
+        let dest_vad = self.models_dir.join("silero_vad.onnx");
+
+        if dest_asr.exists() && dest_vad.exists() {
+            log::info!("AI model files already present in AppData: {:?}", self.models_dir);
+            return true;
+        }
+
+        log::info!("Searching for pre-packaged AI models in bundle resources...");
+        for base in search_paths {
+            if !base.exists() {
+                continue;
+            }
+
+            let asr_candidates = [
+                base.join("en-fa.tzf"),
+                base.join("en-fa.tzf.gz"),
+                base.join("models").join("en-fa.tzf"),
+                base.join("models").join("en-fa.tzf.gz"),
+            ];
+
+            let vad_candidates = [
+                base.join("silero_vad.onnx"),
+                base.join("silero_vad.onnx.gz"),
+                base.join("models").join("silero_vad.onnx"),
+                base.join("models").join("silero_vad.onnx.gz"),
+            ];
+
+            let found_asr = asr_candidates.into_iter().find(|p| p.is_file());
+            let found_vad = vad_candidates.into_iter().find(|p| p.is_file());
+
+            if let (Some(asr_path), Some(vad_path)) = (found_asr, found_vad) {
+                log::info!(
+                    "Found bundled models: {:?} and {:?}. Auto-installing into AppData...",
+                    asr_path,
+                    vad_path
+                );
+                match self.import_model_files(&asr_path, &vad_path) {
+                    Ok(_) => {
+                        log::info!("Bundled models successfully unpacked and verified into AppData.");
+                        return true;
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to unpack bundled models from {:?}: {e}", base);
+                    }
+                }
+            }
+        }
+
+        log::warn!("No bundled AI models found across search paths.");
+        false
+    }
+
     pub fn models_dir(&self) -> &Path {
         &self.models_dir
     }

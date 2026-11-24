@@ -75,6 +75,27 @@ pub fn run() {
 
                 // Initialize ASR and Audio subsystems
                 let model_manager = Arc::new(ModelManager::new(&app_data_dir));
+
+                // Auto-unpack pre-packaged AI models from bundled resources if not yet in AppData
+                let mut model_search_dirs = Vec::new();
+                if let Ok(res_dir) = app.path().resource_dir() {
+                    model_search_dirs.push(res_dir.join("models"));
+                    model_search_dirs.push(res_dir.join("_up_").join("models"));
+                    model_search_dirs.push(res_dir);
+                }
+                if let Ok(exe_path) = std::env::current_exe() {
+                    if let Some(exe_dir) = exe_path.parent() {
+                        model_search_dirs.push(exe_dir.join("models"));
+                        model_search_dirs.push(exe_dir.join("resources").join("models"));
+                        model_search_dirs.push(exe_dir.to_path_buf());
+                    }
+                }
+                model_search_dirs.push(std::path::PathBuf::from("src-tauri/models"));
+                model_search_dirs.push(std::path::PathBuf::from("vendor/tinyasr/models"));
+                model_search_dirs.push(std::path::PathBuf::from("models"));
+
+                model_manager.auto_unpack_bundled_models(&model_search_dirs);
+
                 let asr_engine = Arc::new(AsrEngine::new(Arc::clone(&model_manager)));
                 let audio_capture = Arc::new(AudioCapture::new());
                 let file_transcription_manager = Arc::new(crate::commands::file_commands::FileTranscriptionManager::default());

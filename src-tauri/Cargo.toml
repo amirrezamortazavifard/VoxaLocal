@@ -1,6 +1,6 @@
 [package]
 name = "voxlocal"
-version = "0.1.0"
+version = "1.0.0"
 description = "VoxaLocal — Offline Persian & English Speech Recognition Studio"
 edition = "2021"
 
