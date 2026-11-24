@@ -4,8 +4,21 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
+
+/// Builds a `ureq::Agent` configured with the OS-native TLS connector (SChannel on Windows,
+/// Security.framework on macOS, OpenSSL on Linux).
+pub fn build_https_agent(connect_secs: u64, read_secs: u64) -> Result<ureq::Agent, String> {
+    let tls_connector = native_tls::TlsConnector::new()
+        .map_err(|e| format!("Failed to initialize native TLS connector: {e}"))?;
+    Ok(ureq::AgentBuilder::new()
+        .tls_connector(Arc::new(tls_connector))
+        .timeout_connect(Duration::from_secs(connect_secs))
+        .timeout_read(Duration::from_secs(read_secs))
+        .build())
+}
 
 const GITHUB_LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/amirrezamortazavifard/VoxaLocal/releases/latest";
@@ -136,10 +149,7 @@ fn download_asset_silently(
     }
 
     let part_path = dest_dir.join(format!("{asset_name}.part"));
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(10))
-        .timeout_read(Duration::from_secs(120))
-        .build();
+    let agent = build_https_agent(10, 120)?;
 
     let resp = agent
         .get(url)
@@ -209,10 +219,21 @@ pub fn check_and_download_update(
     }
     let _guard = ResetFlag(&state.is_checking);
 
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(6))
-        .timeout_read(Duration::from_secs(10))
-        .build();
+    let agent = match build_https_agent(6, 10) {
+        Ok(a) => a,
+        Err(e) => {
+            if silent_on_network_error {
+                return Ok(UpdateCheckResult {
+                    update_available: false,
+                    update_info: None,
+                    current_version,
+                    latest_version: None,
+                    offline_or_skipped: true,
+                });
+            }
+            return Err(e);
+        }
+    };
 
     let resp = match agent
         .get(GITHUB_LATEST_RELEASE_API)

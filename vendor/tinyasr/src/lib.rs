@@ -55,6 +55,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 pub use file::Transcription;
+pub use model::{inspect_tzf_metadata, TzfMetadata};
 pub use session::Session;
 pub use vad::{Vad, VadState};
 

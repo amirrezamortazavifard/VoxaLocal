@@ -53,6 +53,54 @@ export interface AudioLevelPayload {
   isSpeech: boolean;
 }
 
+export interface ModelMetadata {
+  formatVersion: string;
+  tensorCount: number;
+  totalParameters: number;
+  int4Tensors: number;
+  int8Tensors: number;
+  fp32Tensors: number;
+  quantGroupSize?: number | null;
+  vocabSize: number;
+  nStacks?: number | null;
+  posDim?: number | null;
+  chunkFrames?: number | null;
+  chunkMs?: number | null;
+  sampleRate: number;
+  hyperparameters: [string, number][];
+  textRules: [string, string][];
+}
+
+export interface InstalledModelEntry {
+  filename: string;
+  sizeBytes: number;
+  isActive: boolean;
+  isLoaded: boolean;
+  languages: string[];
+  metadata?: ModelMetadata | null;
+}
+
+export interface RemoteModelInfo {
+  filename: string;
+  targetFilename: string;
+  displayNameFa: string;
+  displayNameEn: string;
+  languages: string[];
+  sizeBytes: number;
+  downloadUrl: string;
+  isInstalled: boolean;
+  isActive: boolean;
+}
+
+export interface ModelDownloadProgressPayload {
+  filename: string;
+  downloadedBytes: number;
+  totalBytes: number;
+  percent: number;
+  speedKbps: number;
+  status: 'downloading' | 'verifying' | 'done' | 'cancelled' | 'error';
+}
+
 export interface ModelInfo {
   isInstalled: boolean;
   isLoaded: boolean;
@@ -65,6 +113,7 @@ export interface ModelInfo {
   parameterCountMillions: number;
   status: 'not_installed' | 'ready' | 'loaded' | 'error';
   errorMessage?: string;
+  metadata?: ModelMetadata | null;
 }
 
 export interface RecognitionSettings {

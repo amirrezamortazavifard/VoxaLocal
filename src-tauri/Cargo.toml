@@ -33,6 +33,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.10", features = ["v4"] }
 opus = "0.4.0"
 ureq = { version = "2.10", default-features = false, features = ["json", "native-tls"] }
+native-tls = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"

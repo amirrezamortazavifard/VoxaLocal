@@ -1,10 +1,65 @@
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use flate2::read::GzDecoder;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMetadataDto {
+    pub format_version: String,
+    pub tensor_count: usize,
+    pub total_parameters: u64,
+    pub int4_tensors: usize,
+    pub int8_tensors: usize,
+    pub fp32_tensors: usize,
+    pub quant_group_size: Option<usize>,
+    pub vocab_size: usize,
+    pub n_stacks: Option<i32>,
+    pub pos_dim: Option<i32>,
+    pub chunk_frames: Option<i32>,
+    pub chunk_ms: Option<i32>,
+    pub sample_rate: u32,
+    pub hyperparameters: Vec<(String, i32)>,
+    pub text_rules: Vec<(String, String)>,
+}
+
+impl From<tinyasr::TzfMetadata> for ModelMetadataDto {
+    fn from(m: tinyasr::TzfMetadata) -> Self {
+        let chunk_ms = m.chunk_frames.map(|c| c * 20);
+        Self {
+            format_version: m.format_version,
+            tensor_count: m.tensor_count,
+            total_parameters: m.total_parameters,
+            int4_tensors: m.int4_tensors,
+            int8_tensors: m.int8_tensors,
+            fp32_tensors: m.fp32_tensors,
+            quant_group_size: m.quant_group_size,
+            vocab_size: m.vocab_size,
+            n_stacks: m.n_stacks,
+            pos_dim: m.pos_dim,
+            chunk_frames: m.chunk_frames,
+            chunk_ms,
+            sample_rate: 16000,
+            hyperparameters: m.hyperparameters,
+            text_rules: m.text_rules,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledModelEntry {
+    pub filename: String,
+    pub size_bytes: u64,
+    pub is_active: bool,
+    pub is_loaded: bool,
+    pub languages: Vec<String>,
+    pub metadata: Option<ModelMetadataDto>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,6 +75,7 @@ pub struct ModelInfo {
     pub parameter_count_millions: f32,
     pub status: String, // "not_installed" | "ready" | "loaded" | "error"
     pub error_message: Option<String>,
+    pub metadata: Option<ModelMetadataDto>,
 }
 
 impl Default for ModelInfo {
@@ -36,14 +92,17 @@ impl Default for ModelInfo {
             parameter_count_millions: 60.0,
             status: "not_installed".to_string(),
             error_message: None,
+            metadata: None,
         }
     }
 }
 
 pub struct ModelManager {
     models_dir: PathBuf,
+    active_asr_filename: RwLock<String>,
     loaded_models: Arc<RwLock<Option<Arc<tinyasr::Models>>>>,
     info: Arc<RwLock<ModelInfo>>,
+    pub download_cancel: Arc<AtomicBool>,
 }
 
 fn decompress_if_gzipped(bytes: &[u8]) -> Result<Vec<u8>, String> {
@@ -66,8 +125,10 @@ impl ModelManager {
 
         let manager = Self {
             models_dir,
+            active_asr_filename: RwLock::new("en-fa.tzf".to_string()),
             loaded_models: Arc::new(RwLock::new(None)),
             info: Arc::new(RwLock::new(ModelInfo::default())),
+            download_cancel: Arc::new(AtomicBool::new(false)),
         };
 
         manager.refresh_status();
@@ -140,8 +201,20 @@ impl ModelManager {
         self.info.read().clone()
     }
 
+    pub fn active_filename(&self) -> String {
+        self.active_asr_filename.read().clone()
+    }
+
+    pub fn set_active_filename(&self, filename: &str) {
+        if self.models_dir.join(filename).exists() {
+            *self.active_asr_filename.write() = filename.to_string();
+            self.refresh_status();
+        }
+    }
+
     pub fn refresh_status(&self) {
-        let asr_path = self.models_dir.join("en-fa.tzf");
+        let active_name = self.active_asr_filename.read().clone();
+        let asr_path = self.models_dir.join(&active_name);
         let vad_path = self.models_dir.join("silero_vad.onnx");
 
         let mut info = self.info.write();
@@ -153,12 +226,22 @@ impl ModelManager {
 
             info.is_installed = true;
             info.is_loaded = is_loaded;
-            info.asr_filename = Some("en-fa.tzf".to_string());
+            info.asr_filename = Some(active_name);
             info.vad_filename = Some("silero_vad.onnx".to_string());
             info.asr_size_bytes = asr_size;
             info.vad_size_bytes = vad_size;
             info.status = if is_loaded { "loaded".to_string() } else { "ready".to_string() };
             info.error_message = None;
+
+            if info.metadata.is_none() {
+                if let Ok(bytes) = fs::read(&asr_path) {
+                    if let Ok(meta) = tinyasr::inspect_tzf_metadata(&bytes) {
+                        info.parameter_count_millions =
+                            (meta.total_parameters as f32 / 1_000_000.0 * 10.0).round() / 10.0;
+                        info.metadata = Some(meta.into());
+                    }
+                }
+            }
         } else {
             info.is_installed = false;
             info.is_loaded = false;
@@ -232,17 +315,23 @@ impl ModelManager {
     }
 
     pub fn load_models(&self, threads: usize) -> Result<(), String> {
-        let asr_path = self.models_dir.join("en-fa.tzf");
+        let active_name = self.active_asr_filename.read().clone();
+        let asr_path = self.models_dir.join(&active_name);
         let vad_path = self.models_dir.join("silero_vad.onnx");
 
         if !asr_path.exists() || !vad_path.exists() {
-            return Err("Model files are not installed. Please import en-fa.tzf and silero_vad.onnx first.".to_string());
+            return Err(format!(
+                "Model files are not installed. Please ensure {} and silero_vad.onnx are installed.",
+                active_name
+            ));
         }
 
         let asr_bytes = fs::read(&asr_path)
             .map_err(|e| format!("Failed to read ASR model from {:?}: {e}", asr_path))?;
         let vad_bytes = fs::read(&vad_path)
             .map_err(|e| format!("Failed to read VAD model from {:?}: {e}", vad_path))?;
+
+        let meta_dto = tinyasr::inspect_tzf_metadata(&asr_bytes).ok().map(ModelMetadataDto::from);
 
         let mut models = tinyasr::Models::load(tinyasr::Files {
             asr: &asr_bytes,
@@ -258,13 +347,150 @@ impl ModelManager {
         *self.loaded_models.write() = Some(Arc::new(models));
 
         let mut info = self.info.write();
+        info.is_installed = true;
         info.is_loaded = true;
+        info.asr_filename = Some(active_name.clone());
+        info.asr_size_bytes = asr_bytes.len() as u64;
+        info.vad_size_bytes = vad_bytes.len() as u64;
         info.languages = langs;
+        if let Some(ref m) = meta_dto {
+            info.parameter_count_millions =
+                (m.total_parameters as f32 / 1_000_000.0 * 10.0).round() / 10.0;
+        }
+        info.metadata = meta_dto;
         info.status = "loaded".to_string();
         info.error_message = None;
 
-        log::info!("TinyASR models successfully loaded with {} threads.", threads);
+        log::info!("TinyASR model '{}' successfully loaded with {} threads.", active_name, threads);
         Ok(())
+    }
+
+    pub fn set_active_model(&self, filename: &str, threads: usize) -> Result<ModelInfo, String> {
+        let target_path = self.models_dir.join(filename);
+        if !target_path.exists() {
+            return Err(format!("Model '{}' is not installed", filename));
+        }
+        *self.active_asr_filename.write() = filename.to_string();
+        self.load_models(threads)?;
+        Ok(self.get_info())
+    }
+
+    pub fn install_asr_model_bytes(&self, target_filename: &str, raw_or_gz_bytes: &[u8]) -> Result<InstalledModelEntry, String> {
+        let decompressed = decompress_if_gzipped(raw_or_gz_bytes)?;
+        if decompressed.len() < 4 {
+            return Err("Downloaded model file is too short to be valid".to_string());
+        }
+        let magic = &decompressed[0..4];
+        if !matches!(magic, b"TZF1" | b"TZF2" | b"TZF3" | b"TZF4" | b"TZF5") {
+            return Err(format!(
+                "Invalid ASR model header: expected TZF1-TZF5, found {:?}",
+                String::from_utf8_lossy(magic)
+            ));
+        }
+
+        let vad_path = self.models_dir.join("silero_vad.onnx");
+        if !vad_path.exists() {
+            return Err("Silero VAD model (silero_vad.onnx) is missing".to_string());
+        }
+        let vad_bytes = fs::read(&vad_path)
+            .map_err(|e| format!("Failed to read silero_vad.onnx: {e}"))?;
+
+        let test_models = tinyasr::Models::load(tinyasr::Files {
+            asr: &decompressed,
+            vad: &vad_bytes,
+        })
+        .map_err(|e| format!("Model integrity check failed: {e}"))?;
+
+        let langs: Vec<String> = test_models.langs().into_iter().map(|s| s.to_string()).collect();
+        let meta = tinyasr::inspect_tzf_metadata(&decompressed).ok().map(ModelMetadataDto::from);
+
+        let clean_name = target_filename.trim_end_matches(".gz").to_string();
+        let dest_path = self.models_dir.join(&clean_name);
+        let mut f = File::create(&dest_path)
+            .map_err(|e| format!("Failed to create model file {:?}: {e}", dest_path))?;
+        f.write_all(&decompressed)
+            .map_err(|e| format!("Failed to write model file: {e}"))?;
+
+        let active = self.active_asr_filename.read().clone() == clean_name;
+        let loaded = active && self.loaded_models.read().is_some();
+
+        log::info!("Installed new ASR model '{}' ({:?})", clean_name, langs);
+        Ok(InstalledModelEntry {
+            filename: clean_name,
+            size_bytes: decompressed.len() as u64,
+            is_active: active,
+            is_loaded: loaded,
+            languages: langs,
+            metadata: meta,
+        })
+    }
+
+    pub fn delete_installed_model(&self, filename: &str) -> Result<(), String> {
+        let active = self.active_asr_filename.read().clone();
+        if filename == active {
+            return Err("Cannot delete the currently active model. Switch to another model first.".to_string());
+        }
+        let path = self.models_dir.join(filename);
+        if !path.exists() {
+            return Err(format!("Model '{}' not found", filename));
+        }
+        fs::remove_file(&path).map_err(|e| format!("Failed to delete model '{}': {e}", filename))?;
+        Ok(())
+    }
+
+    pub fn list_installed_models(&self) -> Vec<InstalledModelEntry> {
+        let active = self.active_asr_filename.read().clone();
+        let is_loaded = self.loaded_models.read().is_some();
+        let vad_bytes = fs::read(self.models_dir.join("silero_vad.onnx")).ok();
+
+        let mut entries = Vec::new();
+        if let Ok(read_dir) = fs::read_dir(&self.models_dir) {
+            for entry in read_dir.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("tzf") {
+                    continue;
+                }
+                let filename = match path.file_name().and_then(|n| n.to_str()) {
+                    Some(n) => n.to_string(),
+                    None => continue,
+                };
+                let size_bytes = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                let raw = fs::read(&path).ok();
+                let meta = raw
+                    .as_deref()
+                    .and_then(|b| tinyasr::inspect_tzf_metadata(b).ok())
+                    .map(ModelMetadataDto::from);
+
+                let mut languages: Vec<String> = Vec::new();
+                if let (Some(ref r), Some(ref vad)) = (&raw, &vad_bytes) {
+                    if let Ok(m) = tinyasr::Models::load(tinyasr::Files { asr: r, vad }) {
+                        languages = m.langs().into_iter().map(|s| s.to_string()).collect();
+                    }
+                }
+                if languages.is_empty() {
+                    if let Some(ref m) = meta {
+                        for (k, v) in &m.text_rules {
+                            if k.starts_with("lang.") && k.matches('.').count() == 1 {
+                                languages.push(v.clone());
+                            }
+                        }
+                    }
+                }
+
+                let is_active = filename == active;
+                entries.push(InstalledModelEntry {
+                    filename,
+                    size_bytes,
+                    is_active,
+                    is_loaded: is_active && is_loaded,
+                    languages,
+                    metadata: meta,
+                });
+            }
+        }
+
+        entries.sort_by(|a, b| b.is_active.cmp(&a.is_active).then_with(|| a.filename.cmp(&b.filename)));
+        entries
     }
 
     pub fn unload_models(&self) {

@@ -95,6 +95,9 @@ pub fn run() {
                 model_search_dirs.push(std::path::PathBuf::from("models"));
 
                 model_manager.auto_unpack_bundled_models(&model_search_dirs);
+                if let Ok(Some(saved_model)) = settings_repo.get("active_asr_model") {
+                    model_manager.set_active_filename(&saved_model);
+                }
 
                 let asr_engine = Arc::new(AsrEngine::new(Arc::clone(&model_manager)));
                 let audio_capture = Arc::new(AudioCapture::new());
@@ -168,6 +171,12 @@ pub fn run() {
             unload_asr_models,
             get_model_status,
             import_model_files,
+            list_installed_models,
+            set_active_model,
+            delete_installed_model,
+            fetch_remote_models,
+            download_and_install_model,
+            cancel_model_download,
             start_recording,
             stop_recording,
             cancel_recording,

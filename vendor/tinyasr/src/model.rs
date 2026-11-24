@@ -157,6 +157,80 @@ impl<'a> Rd<'a> {
     }
 }
 
+/// Rich binary metadata extracted directly from a `.tzf` model file header and tensor table.
+#[derive(Clone, Debug)]
+pub struct TzfMetadata {
+    pub format_version: String,
+    pub tensor_count: usize,
+    pub total_parameters: u64,
+    pub int4_tensors: usize,
+    pub int8_tensors: usize,
+    pub fp32_tensors: usize,
+    pub quant_group_size: Option<usize>,
+    pub vocab_size: usize,
+    pub n_stacks: Option<i32>,
+    pub pos_dim: Option<i32>,
+    pub chunk_frames: Option<i32>,
+    pub hyperparameters: Vec<(String, i32)>,
+    pub text_rules: Vec<(String, String)>,
+}
+
+/// Inspects a `.tzf` binary buffer and extracts its embedded neural network metadata without
+/// allocating runtime inference buffers.
+pub fn inspect_tzf_metadata(b: &[u8]) -> Result<TzfMetadata, &'static str> {
+    if b.len() < 4 {
+        return Err("model file too short");
+    }
+    let format_version = String::from_utf8_lossy(&b[0..4]).into_owned();
+    let w = Tensors::parse(b)?;
+
+    let mut total_parameters: u64 = 0;
+    let mut int4_tensors = 0usize;
+    let mut int8_tensors = 0usize;
+    let mut fp32_tensors = 0usize;
+    let mut quant_group_size = None;
+
+    for (dims, data) in w.t.values() {
+        let count: u64 = dims.iter().map(|&d| d as u64).product();
+        total_parameters = total_parameters.saturating_add(count);
+        match data {
+            Data::F32(_) => fp32_tensors += 1,
+            Data::Int(ints) => {
+                if quant_group_size.is_none() {
+                    quant_group_size = Some(ints.group);
+                }
+                if ints.bits == 4 {
+                    int4_tensors += 1;
+                } else {
+                    int8_tensors += 1;
+                }
+            }
+        }
+    }
+
+    let n_stacks = w.cfg.get("n_stacks").copied();
+    let pos_dim = w.cfg.get("pos_dim").copied();
+    let chunk_frames = w.cfg.get("chunk").copied();
+    let hyperparameters = w.cfg.iter().map(|(k, &v)| (k.clone(), v)).collect();
+    let text_rules = w.text.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+
+    Ok(TzfMetadata {
+        format_version,
+        tensor_count: w.t.len(),
+        total_parameters,
+        int4_tensors,
+        int8_tensors,
+        fp32_tensors,
+        quant_group_size,
+        vocab_size: w.pieces.len(),
+        n_stacks,
+        pos_dim,
+        chunk_frames,
+        hyperparameters,
+        text_rules,
+    })
+}
+
 impl<'a> Tensors<'a> {
     /// The `.tzf` file written by `export_tzf.py` (TZF1: f32) or `export_tzf2.py` (TZF2: integer weights; TZF3: as
     /// TZF2 plus text settings after the integer ones). Every size is checked against the file, so a corrupted file is

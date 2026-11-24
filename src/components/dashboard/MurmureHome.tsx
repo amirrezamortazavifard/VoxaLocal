@@ -156,10 +156,10 @@ export const MurmureHome: React.FC<MurmureHomeProps> = ({
         {/* Subtle top ambient glow */}
         <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent pointer-events-none" />
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="space-y-1 flex-1 min-w-0">
+        <div className="flex flex-col gap-3">
+          <div className="space-y-1 w-full min-w-0">
             <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="flex h-2.5 w-2.5 relative">
+              <span className="flex h-2.5 w-2.5 relative shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
               </span>
