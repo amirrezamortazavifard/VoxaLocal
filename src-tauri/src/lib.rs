@@ -99,6 +99,7 @@ pub fn run() {
                 let asr_engine = Arc::new(AsrEngine::new(Arc::clone(&model_manager)));
                 let audio_capture = Arc::new(AudioCapture::new());
                 let file_transcription_manager = Arc::new(crate::commands::file_commands::FileTranscriptionManager::default());
+                let updater_state = Arc::new(crate::system::updater::UpdaterState::new(app_data_dir.clone()));
 
                 // Setup system tray
                 if let Err(e) = TrayManager::setup(&app.handle()) {
@@ -110,9 +111,10 @@ pub fn run() {
                 app.manage(Arc::clone(&asr_engine));
                 app.manage(audio_capture);
                 app.manage(file_transcription_manager);
-                app.manage(history_repo);
-                app.manage(settings_repo);
+                app.manage(history_repo.clone());
+                app.manage(settings_repo.clone());
                 app.manage(shortcut_manager);
+                app.manage(Arc::clone(&updater_state));
 
                 // Pre-load ASR models in RAM in background for zero-latency dictation
                 let asr_engine_preload = Arc::clone(&asr_engine);
@@ -121,6 +123,25 @@ pub fn run() {
                         log::warn!("Background ASR model pre-load: {e}");
                     } else {
                         log::info!("ASR models successfully pre-loaded into RAM for zero-latency dictation.");
+                    }
+                });
+
+                // Silent background GitHub Releases update check (only downloads if online & newer version exists)
+                let app_handle_upd = app.handle().clone();
+                let updater_clone = Arc::clone(&updater_state);
+                let settings_clone = settings_repo.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    let enabled = match settings_clone.get("auto_check_updates") {
+                        Ok(Some(v)) => v != "false",
+                        _ => true,
+                    };
+                    if enabled {
+                        let _ = crate::system::updater::check_and_download_update(
+                            &app_handle_upd,
+                            &updater_clone,
+                            true,
+                        );
                     }
                 });
 
@@ -171,6 +192,13 @@ pub fn run() {
             cancel_quick_dictation_session,
             get_app_setting,
             set_app_setting,
+            get_autostart_enabled,
+            set_autostart_enabled,
+            get_auto_update_enabled,
+            set_auto_update_enabled,
+            check_for_updates,
+            get_pending_update,
+            install_and_restart_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoxLocal application");

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { AlertCircle, X } from 'lucide-react';
+import { listen } from '@tauri-apps/api/event';
+import { AlertCircle, Download, X } from 'lucide-react';
 import { useAsr } from './hooks/useAsr';
 import { Sidebar, DashboardTab } from './components/dashboard/Sidebar';
 import { MurmureHome } from './components/dashboard/MurmureHome';
@@ -16,12 +17,14 @@ import { HistoryView } from './components/HistoryView';
 import { AboutView } from './components/about/AboutView';
 import { QuickDictationOverlay } from './components/quick-dictation/QuickDictationOverlay';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
-import { QuickDictationSettings } from './types/asr';
+import { QuickDictationSettings, UpdateInfo } from './types/asr';
 
 const MainApp: React.FC = () => {
   const { language } = useLanguage();
   const [activeTab, setActiveTab] = useState<DashboardTab>('home');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
+  const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
 
   const {
     modelInfo,
@@ -46,7 +49,30 @@ const MainApp: React.FC = () => {
     invoke<QuickDictationSettings>('get_quick_dictation_settings')
       .then((s) => setQdSettings(s))
       .catch(console.error);
+
+    invoke<UpdateInfo | null>('get_pending_update')
+      .then((u) => {
+        if (u) setPendingUpdate(u);
+      })
+      .catch(console.error);
+
+    const unlistenPromise = listen<UpdateInfo>('app://update-ready', (event) => {
+      setPendingUpdate(event.payload);
+      setUpdateBannerDismissed(false);
+    });
+
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
   }, []);
+
+  const handleInstallAndRestart = async () => {
+    try {
+      await invoke('install_and_restart_update');
+    } catch (err) {
+      setErrorMessage(String(err));
+    }
+  };
 
   const handleSaveToHistory = async (title: string, text: string, srt: string) => {
     const locale = language === 'fa' ? 'fa-IR' : 'en-US';
@@ -81,6 +107,33 @@ const MainApp: React.FC = () => {
 
       {/* Main Workspace Body */}
       <main className="flex-1 flex flex-col h-full bg-[#111215] overflow-hidden relative min-w-0">
+        {pendingUpdate && !updateBannerDismissed && (
+          <div className="mx-3 mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg shrink-0">
+            <div className="flex items-center space-x-2 space-x-reverse min-w-0">
+              <Download className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                {language === 'fa'
+                  ? `نسخه جدید v${pendingUpdate.version} دانلود شد و آماده نصب است. مایل به نصب و راه‌اندازی مجدد هستید؟`
+                  : `VoxaLocal v${pendingUpdate.version} has been downloaded silently. Install and restart now?`}
+              </span>
+            </div>
+            <div className="flex items-center space-x-2 space-x-reverse shrink-0">
+              <button
+                onClick={handleInstallAndRestart}
+                className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px] transition-colors cursor-pointer"
+              >
+                {language === 'fa' ? 'نصب و ریستارت' : 'Install & Restart'}
+              </button>
+              <button
+                onClick={() => setUpdateBannerDismissed(true)}
+                className="px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 text-[11px] transition-colors cursor-pointer"
+              >
+                {language === 'fa' ? 'بعداً' : 'Later'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="m-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between shadow-lg">
             <div className="flex items-center space-x-2 space-x-reverse">

@@ -141,3 +141,21 @@ export interface AppStatus {
   primaryLanguage: string;
   os: string;
 }
+
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  releaseNotes: string;
+  htmlUrl: string;
+  assetName: string;
+  assetPath: string;
+  assetSize: number;
+}
+
+export interface UpdateCheckResult {
+  updateAvailable: boolean;
+  updateInfo?: UpdateInfo | null;
+  currentVersion: string;
+  latestVersion?: string | null;
+  offlineOrSkipped: boolean;
+}

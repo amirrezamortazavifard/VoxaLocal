@@ -488,13 +488,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             <span>{t('reportBug')}</span>
           </button>
 
-          <div className="flex items-center justify-between px-3 py-1.5 text-slate-500 text-[11px]">
+          <button
+            onClick={() => setActiveTab('system')}
+            className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-slate-500 hover:bg-white/[0.04] hover:text-slate-200 text-[11px] transition-colors cursor-pointer"
+          >
             <div className="flex items-center space-x-2 space-x-reverse">
               <RefreshCw className="w-3 h-3 text-emerald-400" />
               <span className="text-slate-400">{t('checkUpdates')}</span>
             </div>
             <span className="font-mono text-[10px] text-slate-500">v1.0.0</span>
-          </div>
+          </button>
 
           {/* Language Switcher Pill */}
           <div className="pt-2 flex items-center justify-between px-2">
