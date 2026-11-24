@@ -356,7 +356,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
           </div>
 
           <span className="text-[11px] font-mono text-slate-500" dir="ltr">
-            Current: v1.0.0
+            Current: v1.0.1
           </span>
         </div>
 
