@@ -14,8 +14,12 @@ fn decompress_gz(bytes: &[u8]) -> Vec<u8> {
 
 #[test]
 fn test_load_en_fa_and_vad() {
-    let asr_gz = std::fs::read("../vendor/tinyasr/models/en-fa.tzf.gz").expect("Missing en-fa.tzf.gz");
-    let vad_gz = std::fs::read("../vendor/tinyasr/models/silero_vad.onnx.gz").expect("Missing silero_vad.onnx.gz");
+    let asr_gz = std::fs::read("models/en-fa.tzf.gz")
+        .or_else(|_| std::fs::read("../vendor/tinyasr/models/en-fa.tzf.gz"))
+        .expect("Missing en-fa.tzf.gz");
+    let vad_gz = std::fs::read("models/silero_vad.onnx.gz")
+        .or_else(|_| std::fs::read("../vendor/tinyasr/models/silero_vad.onnx.gz"))
+        .expect("Missing silero_vad.onnx.gz");
 
     println!("Decompressing asr model ({} bytes compressed)...", asr_gz.len());
     let asr_raw = decompress_gz(&asr_gz);

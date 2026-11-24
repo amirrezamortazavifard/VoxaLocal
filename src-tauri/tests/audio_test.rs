@@ -72,7 +72,10 @@ fn test_cpal_input_device() {
     let host = cpal::default_host();
     println!("CPAL Default Host: {:?}", host.id());
 
-    let default_in = host.default_input_device().expect("must have default input");
+    let Some(default_in) = host.default_input_device() else {
+        println!("No audio input device available in this environment (e.g. headless CI); skipping live capture test.");
+        return;
+    };
     println!("CPAL Default input device: {:?}", default_in.name().ok());
 
     let cfg = default_in.default_input_config().expect("default config");
