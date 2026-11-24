@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
               dir="ltr"
             >
-              v1.0.1 Offline
+              v1.0.2 Offline
             </span>
           </div>
           <p className="text-[11px] text-slate-400 font-sans line-clamp-1">

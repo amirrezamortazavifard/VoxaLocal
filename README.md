@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/amirrezamortazavifard/VoxaLocal/releases"><img src="https://img.shields.io/github/v/release/amirrezamortazavifard/VoxaLocal?color=06b6d4&style=flat-square" alt="GitHub Release"></a>
-  <img src="https://img.shields.io/badge/Version-v1.0.1-cyan?style=flat-square" alt="Version 1.0.1">
+  <img src="https://img.shields.io/badge/Version-v1.0.2-cyan?style=flat-square" alt="Version 1.0.2">
   <img src="https://img.shields.io/badge/Privacy-100%25%20Offline-emerald?style=flat-square" alt="100% Offline">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/Tauri-2.0-indigo?style=flat-square" alt="Tauri 2.0">
@@ -58,15 +58,15 @@ All VoxaLocal installer packages come **pre-packaged with verified Persian & Eng
 Download the official installer for your operating system from [GitHub Releases](https://github.com/amirrezamortazavifard/VoxaLocal/releases):
 
 ### Windows
-- **Standard Installer**: `VoxaLocal_1.0.1_x64-setup.exe` (NSIS setup with start menu shortcuts)
-- **Enterprise Installer**: `VoxaLocal_1.0.1_x64_en-US.msi` (WiX package for automated deployment)
+- **Standard Installer**: `VoxaLocal_1.0.2_x64-setup.exe` (NSIS setup with start menu shortcuts)
+- **Enterprise Installer**: `VoxaLocal_1.0.2_x64_en-US.msi` (WiX package for automated deployment)
 
 ### macOS (Universal)
-- **Disk Image**: `VoxaLocal_1.0.1_universal.dmg` (Universal binary supporting Apple Silicon M1/M2/M3/M4 & Intel x86_64)
+- **Disk Image**: `VoxaLocal_1.0.2_universal.dmg` (Universal binary supporting Apple Silicon M1/M2/M3/M4 & Intel x86_64)
 
 ### Linux
-- **Standalone Portable**: `VoxaLocal_1.0.1_amd64.AppImage` (Run directly without installation)
-- **Debian / Ubuntu**: `voxalocal_1.0.1_amd64.deb` (`sudo dpkg -i voxalocal_1.0.1_amd64.deb`)
+- **Standalone Portable**: `VoxaLocal_1.0.2_amd64.AppImage` (Run directly without installation)
+- **Debian / Ubuntu**: `voxalocal_1.0.2_amd64.deb` (`sudo dpkg -i voxalocal_1.0.2_amd64.deb`)
 
 ---
 
