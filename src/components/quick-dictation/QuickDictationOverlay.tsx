@@ -403,30 +403,32 @@ export const QuickDictationOverlay: React.FC = () => {
       className="w-screen h-screen p-1.5 select-none overflow-hidden flex items-center justify-center bg-transparent"
       dir={language === 'fa' ? 'rtl' : 'ltr'}
     >
-      {/* Low-transparency Dark Frosted Glass Modal matching macOS reference aesthetic */}
-      <div className="w-full max-w-[548px] h-[328px] bg-[#111116]/[0.94] backdrop-blur-2xl border border-white/[0.14] rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.92),inset_0_1px_0_rgba(255,255,255,0.09)] flex flex-col justify-between relative overflow-hidden text-slate-100 font-sans">
-        {/* Subtle violet specular top accent */}
-        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-violet-400/50 to-transparent pointer-events-none" />
+      {/* Low-transparency Dark Frosted Glass Modal matching unified VoxaLocal cyan/blue theme */}
+      <div className="w-full max-w-[548px] h-[328px] bg-[#111217]/[0.95] backdrop-blur-2xl border border-white/[0.12] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.08)] flex flex-col justify-between relative overflow-hidden text-slate-100 font-sans">
+        {/* Subtle cyan specular top accent */}
+        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/55 to-transparent pointer-events-none" />
 
-        {/* 1. macOS-style Slim Top Title Strip */}
+        {/* 1. Slim Draggable Top Title Strip */}
         <div
           data-tauri-drag-region
           dir="ltr"
           className="h-8 px-3.5 bg-white/[0.03] border-b border-white/[0.07] flex items-center justify-between shrink-0"
         >
           <div data-tauri-drag-region className="flex items-center space-x-2">
-            {/* Traffic-light controls */}
-            <div className="flex items-center space-x-1.5">
-              <button
-                onClick={handleCancel}
-                className="w-2.5 h-2.5 rounded-full bg-[#ff5f57] hover:brightness-110 transition-all cursor-pointer"
-                title={language === 'fa' ? 'بستن (Esc)' : 'Close (Esc)'}
-                aria-label="Close"
-              />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]/85" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]/85" />
+            <div className="w-4 h-4 rounded-full bg-cyan-500/15 border border-cyan-400/35 flex items-center justify-center pointer-events-none">
+              <svg
+                className="w-2.5 h-2.5 text-cyan-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2 12h2M6 8v8M10 5v14M14 9v6M18 11v2M22 12h-2" />
+              </svg>
             </div>
-            <span data-tauri-drag-region className="text-[11px] font-semibold text-slate-200 tracking-wide pl-1.5">
+            <span data-tauri-drag-region className="text-[11px] font-semibold text-slate-200 tracking-wide">
               VoxaLocal Dictate
             </span>
           </div>
@@ -477,17 +479,17 @@ export const QuickDictationOverlay: React.FC = () => {
         ) : (
           /* ================= MAIN INTERACTIVE VIEW ================= */
           <div className="flex flex-col flex-1 min-h-0 px-4 pt-2.5 pb-3 justify-between">
-            {/* 2. Centered Recording Status + Glowing Violet Circular Waveform */}
+            {/* 2. Centered Recording Status + Glowing Cyan/Blue Circular Waveform */}
             <div className="flex flex-col items-center shrink-0">
               <div className="flex items-center space-x-1.5 space-x-reverse text-[11px] font-medium mb-1">
                 <span className="relative flex h-2 w-2">
                   {isRecording && (
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
                   )}
                   <span
                     className={`relative inline-flex rounded-full h-2 w-2 ${
                       isRecording
-                        ? 'bg-violet-500 shadow-[0_0_10px_#8b5cf6]'
+                        ? 'bg-cyan-400 shadow-[0_0_10px_#22d3ee]'
                         : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
                     }`}
                   />
@@ -503,19 +505,19 @@ export const QuickDictationOverlay: React.FC = () => {
                 </span>
               </div>
 
-              {/* Center Luminous Purple Ring + Smooth SVG Wave */}
+              {/* Center Luminous Blue/Cyan Ring + Smooth SVG Wave */}
               <div className="relative w-full h-[68px] flex items-center justify-center overflow-hidden">
-                {/* Ambient purple radial glow */}
+                {/* Ambient cyan/blue radial glow */}
                 <div
                   className={`absolute w-24 h-24 rounded-full blur-xl pointer-events-none transition-opacity duration-300 ${
-                    isRecording ? 'bg-violet-600/25 opacity-100' : 'bg-emerald-500/15 opacity-50'
+                    isRecording ? 'bg-cyan-500/25 opacity-100' : 'bg-emerald-500/15 opacity-50'
                   }`}
                 />
                 {/* Crisp outer circle */}
                 <div
                   className={`absolute w-16 h-16 rounded-full border pointer-events-none transition-all duration-300 ${
                     isRecording
-                      ? 'border-violet-400/50 shadow-[0_0_24px_rgba(139,92,246,0.45),inset_0_0_14px_rgba(139,92,246,0.2)]'
+                      ? 'border-cyan-400/50 shadow-[0_0_24px_rgba(6,182,212,0.45),inset_0_0_14px_rgba(6,182,212,0.2)]'
                       : 'border-white/15 shadow-none'
                   }`}
                 />
@@ -525,7 +527,7 @@ export const QuickDictationOverlay: React.FC = () => {
                   preserveAspectRatio="none"
                 >
                   <defs>
-                    <filter id="violet-glow" x="-10%" y="-40%" width="120%" height="180%">
+                    <filter id="cyan-glow" x="-10%" y="-40%" width="120%" height="180%">
                       <feGaussianBlur stdDeviation="2.4" result="blur" />
                       <feMerge>
                         <feMergeNode in="blur" />
@@ -533,17 +535,17 @@ export const QuickDictationOverlay: React.FC = () => {
                       </feMerge>
                     </filter>
                     <linearGradient id="wave-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.15" />
-                      <stop offset="30%" stopColor="#8b5cf6" stopOpacity="0.85" />
-                      <stop offset="50%" stopColor="#c084fc" stopOpacity="1" />
-                      <stop offset="70%" stopColor="#8b5cf6" stopOpacity="0.85" />
-                      <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.15" />
+                      <stop offset="0%" stopColor="#0284c7" stopOpacity="0.15" />
+                      <stop offset="30%" stopColor="#06b6d4" stopOpacity="0.85" />
+                      <stop offset="50%" stopColor="#67e8f9" stopOpacity="1" />
+                      <stop offset="70%" stopColor="#06b6d4" stopOpacity="0.85" />
+                      <stop offset="100%" stopColor="#0284c7" stopOpacity="0.15" />
                     </linearGradient>
                   </defs>
                   <path
                     d={secondaryWavePath}
                     fill="none"
-                    stroke="#7c3aed"
+                    stroke="#0284c7"
                     strokeOpacity="0.4"
                     strokeWidth="1.3"
                     strokeLinecap="round"
@@ -554,7 +556,7 @@ export const QuickDictationOverlay: React.FC = () => {
                     stroke="url(#wave-grad)"
                     strokeWidth="2"
                     strokeLinecap="round"
-                    filter="url(#violet-glow)"
+                    filter="url(#cyan-glow)"
                   />
                 </svg>
               </div>
@@ -571,7 +573,7 @@ export const QuickDictationOverlay: React.FC = () => {
                 }}
                 onFocus={() => setIsUserEditing(true)}
                 dir="auto"
-                className="w-full flex-1 px-2.5 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06] focus:border-violet-400/50 text-slate-100 text-[13.5px] leading-relaxed resize-none font-sans select-text focus:outline-none transition-colors"
+                className="w-full flex-1 px-2.5 py-1.5 rounded-xl bg-transparent border border-transparent hover:border-white/[0.06] focus:bg-white/[0.02] focus:border-cyan-400/45 text-slate-100 text-[13.5px] leading-relaxed resize-none font-sans select-text focus:outline-none transition-colors"
                 placeholder={
                   language === 'fa'
                     ? 'صحبت کنید؛ متن به صورت زنده اینجا ظاهر می‌شود و قابل ویرایش است...'
@@ -582,14 +584,14 @@ export const QuickDictationOverlay: React.FC = () => {
 
             {/* 4. Bottom Centered Floating Frosted Pill Controls */}
             <div className="flex items-center justify-center pt-1 shrink-0 relative">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1a1a23]/95 border border-white/[0.12] shadow-[0_8px_24px_rgba(0,0,0,0.65)]">
-                {/* Glowing Purple Mic / Record Toggle */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#181922]/95 border border-white/[0.12] shadow-[0_8px_24px_rgba(0,0,0,0.65)]">
+                {/* Glowing Blue/Cyan Mic / Record Toggle */}
                 <button
                   onClick={isRecording ? handleStop : handleRecordAgain}
                   className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                     isRecording
-                      ? 'bg-gradient-to-tr from-violet-600 to-purple-500 text-white shadow-[0_0_16px_rgba(139,92,246,0.75)]'
-                      : 'bg-white/[0.08] hover:bg-violet-500/30 text-violet-300 border border-violet-400/30'
+                      ? 'bg-gradient-to-tr from-sky-600 to-cyan-400 text-slate-950 shadow-[0_0_16px_rgba(6,182,212,0.7)]'
+                      : 'bg-white/[0.08] hover:bg-cyan-500/25 text-cyan-300 border border-cyan-400/30'
                   }`}
                   title={
                     isRecording
@@ -644,7 +646,7 @@ export const QuickDictationOverlay: React.FC = () => {
                   <button
                     onClick={handlePaste}
                     disabled={!transcriptText.trim()}
-                    className="flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-full bg-violet-500/20 hover:bg-violet-500/35 border border-violet-400/30 text-violet-200 text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                    className="flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-full bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/30 text-cyan-200 text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
                     title="Ctrl+Enter"
                   >
                     <ClipboardPaste className="w-3 h-3" />
