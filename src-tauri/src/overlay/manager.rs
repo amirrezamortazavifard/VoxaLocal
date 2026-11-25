@@ -51,9 +51,9 @@ impl OverlayManager {
                 let screen_pos = monitor.position();
                 let scale_factor = monitor.scale_factor();
 
-                let width = (620.0 * scale_factor).round() as u32;
-                let height = (240.0 * scale_factor).round() as u32;
-                let margin_bottom = (55.0 * scale_factor).round() as i32;
+                let width = (560.0 * scale_factor).round() as u32;
+                let height = (340.0 * scale_factor).round() as u32;
+                let margin_bottom = (44.0 * scale_factor).round() as i32;
 
                 let _ = window.set_size(tauri::Size::Physical(PhysicalSize { width, height }));
 

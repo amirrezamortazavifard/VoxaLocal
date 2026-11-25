@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
@@ -7,7 +7,7 @@ import {
   ClipboardPaste,
   X,
   Mic,
-  Square,
+  Pause,
   AlertCircle,
   RotateCcw,
 } from 'lucide-react';
@@ -110,12 +110,12 @@ export const QuickDictationOverlay: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [transcriptText]);
 
-  // Waveform animation ticker
+  // Smooth 30fps waveform animation ticker while recording
   useEffect(() => {
     if (!isRecording) return;
     const interval = setInterval(() => {
-      setWaveTick((prev) => (prev + 1) % 10000);
-    }, 40);
+      setWaveTick((prev) => (prev + 1) % 100000);
+    }, 33);
     return () => clearInterval(interval);
   }, [isRecording]);
 
@@ -128,10 +128,9 @@ export const QuickDictationOverlay: React.FC = () => {
 
   // Listen to IPC events from Rust core
   useEffect(() => {
-    let unlistens: Array<() => void> = [];
+    const unlistens: Array<() => void> = [];
 
     async function initListeners() {
-      // 1. Session started
       const uStarted = await listen<string>('quick-dictation://started', () => {
         setCommittedWords([]);
         committedWordsRef.current = [];
@@ -150,7 +149,6 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uStarted);
 
-      // 2. Engine status
       const uStatus = await listen<{ status: string }>('asr://status', (event) => {
         if (event.payload.status === 'recording') {
           setIsRecording(true);
@@ -160,12 +158,10 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uStatus);
 
-      // 3. Partial streaming words (real-time live streaming)
       const uPartial = await listen<PartialEventPayload>('asr://partial', (event) => {
         const rawOpen = event.payload.open || [];
         const rawTail = event.payload.tail || [];
 
-        // Deduplicate open and tail against committed words
         const cleanOpen = filterUncommittedWords(rawOpen, committedWordsRef.current);
         const cleanTail = filterUncommittedWords(rawTail, committedWordsRef.current, cleanOpen);
 
@@ -174,7 +170,6 @@ export const QuickDictationOverlay: React.FC = () => {
         setTailWords(cleanTail);
         tailWordsRef.current = cleanTail;
 
-        // If user hasn't manually edited text, update live transcription
         if (!isUserEditingRef.current) {
           const all = [...committedWordsRef.current, ...cleanOpen, ...cleanTail];
           const raw = wordsToPlainString(all);
@@ -185,14 +180,12 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uPartial);
 
-      // 4. Commit finalized words
       const uCommit = await listen<CommitEventPayload>('asr://commit', (event) => {
         if (event.payload.words && event.payload.words.length > 0) {
           const merged = mergeCommittedWords(committedWordsRef.current, event.payload.words);
           committedWordsRef.current = merged;
           setCommittedWords(merged);
 
-          // Clean up provisional words that are now committed
           const cleanOpen = filterUncommittedWords(openWordsRef.current, merged);
           const cleanTail = filterUncommittedWords(tailWordsRef.current, merged, cleanOpen);
           setOpenWords(cleanOpen);
@@ -211,7 +204,6 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uCommit);
 
-      // 5. Session finalized (stop triggered)
       const uFinalized = await listen('quick-dictation://finalized', () => {
         setIsRecording(false);
         setOverlayState('result');
@@ -236,7 +228,6 @@ export const QuickDictationOverlay: React.FC = () => {
         setTailWords([]);
         tailWordsRef.current = [];
 
-        // Save session to history as quick_dictation
         const textToSave = finalFormatted || textareaRef.current?.value || '';
         if (textToSave.trim().length > 0) {
           const duration = startTimeRef.current ? (Date.now() - startTimeRef.current) / 1000 : 1.0;
@@ -263,7 +254,6 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uFinalized);
 
-      // 6. Dismissed / Hidden
       const uDismissed = await listen('quick-dictation://dismissed', () => {
         setCommittedWords([]);
         committedWordsRef.current = [];
@@ -274,7 +264,6 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uDismissed);
 
-      // 7. Errors
       const uError = await listen<string>('quick-dictation://error', (event) => {
         setErrorMessage(event.payload);
         setIsRecording(false);
@@ -282,7 +271,6 @@ export const QuickDictationOverlay: React.FC = () => {
       });
       unlistens.push(uError);
 
-      // 8. Audio level
       const uLevel = await listen<AudioLevelPayload>('audio://level', (event) => {
         setAudioLevel(event.payload);
       });
@@ -362,102 +350,218 @@ export const QuickDictationOverlay: React.FC = () => {
     }
   };
 
-  // Generate 36 dynamic equalizer bars
-  const totalBars = 36;
-  const bars = Array.from({ length: totalBars });
+  // Compute smooth dual SVG sine wave paths reactive to live microphone audio level
+  const { primaryWavePath, secondaryWavePath } = useMemo(() => {
+    const width = 460;
+    const midY = 34;
+    const steps = 92;
+
+    const dbEnergy = Math.max(0, Math.min(1, (audioLevel.db + 58.0) / 42.0));
+    const rmsEnergy = Math.min(1, audioLevel.rms * 32.0);
+    const speechEnergy = isRecording
+      ? Math.max(0.14, Math.max(dbEnergy, rmsEnergy))
+      : 0.04;
+
+    const phase = waveTick * 0.22;
+    const pts1: string[] = [];
+    const pts2: string[] = [];
+
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = (t * width).toFixed(1);
+      // Gaussian bell centered at 0.5 so peaks rise cleanly inside the glowing center orb
+      const dist = (t - 0.5) * 2.0;
+      const envelope = Math.exp(-dist * dist * 4.5);
+
+      const carrier1 =
+        Math.sin(t * Math.PI * 14 - phase) * 0.65 +
+        Math.sin(t * Math.PI * 24 + phase * 1.4) * 0.35;
+      const carrier2 =
+        Math.sin(t * Math.PI * 10 + phase * 0.8) * 0.6 +
+        Math.cos(t * Math.PI * 18 - phase * 1.1) * 0.4;
+
+      const amp1 = 26 * speechEnergy * envelope;
+      const amp2 = 16 * speechEnergy * envelope;
+
+      const y1 = (midY + carrier1 * amp1).toFixed(1);
+      const y2 = (midY + carrier2 * amp2).toFixed(1);
+
+      pts1.push(`${i === 0 ? 'M' : 'L'}${x},${y1}`);
+      pts2.push(`${i === 0 ? 'M' : 'L'}${x},${y2}`);
+    }
+
+    return {
+      primaryWavePath: pts1.join(' '),
+      secondaryWavePath: pts2.join(' '),
+    };
+  }, [audioLevel.db, audioLevel.rms, isRecording, waveTick]);
 
   const wordCount = transcriptText.trim().length > 0 ? transcriptText.trim().split(/\s+/).length : 0;
 
   return (
     <div
-      className="w-screen h-screen p-2 select-none overflow-hidden flex items-center justify-center bg-transparent"
+      className="w-screen h-screen p-1.5 select-none overflow-hidden flex items-center justify-center bg-transparent"
       dir={language === 'fa' ? 'rtl' : 'ltr'}
     >
-      {/* Sleek Floating Pill Container - Glassmorphic Bottom Desktop Modal */}
-      <div className="w-full max-w-[620px] h-[224px] bg-[#12141a]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_25px_rgba(6,182,212,0.15)] flex flex-col justify-between p-3.5 relative overflow-hidden text-slate-100 font-sans">
-        {/* Subtle top ambient cyan light highlight */}
-        <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent pointer-events-none" />
+      {/* Low-transparency Dark Frosted Glass Modal matching macOS reference aesthetic */}
+      <div className="w-full max-w-[548px] h-[328px] bg-[#111116]/[0.94] backdrop-blur-2xl border border-white/[0.14] rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.92),inset_0_1px_0_rgba(255,255,255,0.09)] flex flex-col justify-between relative overflow-hidden text-slate-100 font-sans">
+        {/* Subtle violet specular top accent */}
+        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-violet-400/50 to-transparent pointer-events-none" />
+
+        {/* 1. macOS-style Slim Top Title Strip */}
+        <div
+          data-tauri-drag-region
+          dir="ltr"
+          className="h-8 px-3.5 bg-white/[0.03] border-b border-white/[0.07] flex items-center justify-between shrink-0"
+        >
+          <div data-tauri-drag-region className="flex items-center space-x-2">
+            {/* Traffic-light controls */}
+            <div className="flex items-center space-x-1.5">
+              <button
+                onClick={handleCancel}
+                className="w-2.5 h-2.5 rounded-full bg-[#ff5f57] hover:brightness-110 transition-all cursor-pointer"
+                title={language === 'fa' ? 'بستن (Esc)' : 'Close (Esc)'}
+                aria-label="Close"
+              />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]/85" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]/85" />
+            </div>
+            <span data-tauri-drag-region className="text-[11px] font-semibold text-slate-200 tracking-wide pl-1.5">
+              VoxaLocal Dictate
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span className="font-mono text-[10px] text-slate-400 bg-white/[0.05] px-1.5 py-0.5 rounded">
+              {formatDuration(recordingSeconds)}
+            </span>
+            <button
+              onClick={handleCancel}
+              className="p-0.5 rounded text-slate-400 hover:text-slate-100 hover:bg-white/[0.08] transition-colors cursor-pointer"
+              title="Esc"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
 
         {overlayState === 'error' ? (
           /* ================= ERROR VIEW ================= */
-          <div className="flex flex-col h-full justify-between p-1">
-            <div className="flex items-center justify-between text-xs pb-1 border-b border-rose-500/20">
-              <span className="text-rose-400 font-bold text-xs flex items-center space-x-1.5 space-x-reverse">
-                <AlertCircle className="w-4 h-4 text-rose-400" />
-                <span>{language === 'fa' ? 'خطای دیکته صوتی' : 'Dictation Error'}</span>
-              </span>
+          <div className="flex flex-col flex-1 justify-between p-4">
+            <div className="flex items-center space-x-2 space-x-reverse text-rose-400 text-xs font-bold">
+              <AlertCircle className="w-4 h-4" />
+              <span>{language === 'fa' ? 'خطای دیکته صوتی' : 'Dictation Error'}</span>
+            </div>
+            <div className="flex-1 my-2 p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 font-mono overflow-y-auto">
+              {errorMessage || (language === 'fa' ? 'خطایی در ضبط صدا رخ داد.' : 'Recording error occurred.')}
+            </div>
+            <div className="flex justify-end">
               <button
                 onClick={handleCancel}
-                className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer"
+                className="px-4 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs font-medium cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="flex-1 my-2 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 font-mono overflow-y-auto">
-              {errorMessage || (language === 'fa' ? 'خطایی در راه‌اندازی ضبط رخ داده است.' : 'An error occurred during dictation.')}
-            </div>
-
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={handleCancel}
-                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium cursor-pointer"
-              >
-                {language === 'fa' ? 'بستن (Close)' : 'Close'}
+                {language === 'fa' ? 'بستن' : 'Close'}
               </button>
             </div>
           </div>
         ) : overlayState === 'pasted' ? (
-          /* ================= PASTED NOTIFICATION VIEW ================= */
-          <div className="flex flex-col h-full items-center justify-center text-center p-3 animate-fade-in">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center mb-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+          /* ================= PASTED VIEW ================= */
+          <div className="flex flex-col flex-1 items-center justify-center text-center p-4">
+            <div className="w-11 h-11 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center mb-2 shadow-[0_0_18px_rgba(16,185,129,0.35)]">
               <Check className="w-5 h-5 text-emerald-400" />
             </div>
             <p className="text-sm font-bold text-slate-100">
-              {language === 'fa' ? 'متن با موفقیت در برنامه جای‌گذاری شد' : 'Pasted into application'}
-            </p>
-            <p className="text-xs text-slate-300 truncate max-w-md mt-1" dir="auto">
-              «{transcriptText}»
+              {language === 'fa' ? 'متن در برنامه درج شد' : 'Pasted into active app'}
             </p>
           </div>
         ) : (
-          /* ================= MAIN INTERACTIVE VIEW (RECORDING + DIRECT EDITING + COPY) ================= */
-          <div className="flex flex-col h-full justify-between">
-            {/* Top Header Bar */}
-            <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08] text-xs">
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <span className="relative flex h-2.5 w-2.5">
+          /* ================= MAIN INTERACTIVE VIEW ================= */
+          <div className="flex flex-col flex-1 min-h-0 px-4 pt-2.5 pb-3 justify-between">
+            {/* 2. Centered Recording Status + Glowing Violet Circular Waveform */}
+            <div className="flex flex-col items-center shrink-0">
+              <div className="flex items-center space-x-1.5 space-x-reverse text-[11px] font-medium mb-1">
+                <span className="relative flex h-2 w-2">
                   {isRecording && (
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
                   )}
                   <span
-                    className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                      isRecording ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]' : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      isRecording
+                        ? 'bg-violet-500 shadow-[0_0_10px_#8b5cf6]'
+                        : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
                     }`}
-                  ></span>
+                  />
                 </span>
-                <span className={`${isRecording ? 'text-cyan-300' : 'text-emerald-300'} font-bold text-xs tracking-wide`}>
+                <span className={isRecording ? 'text-slate-200' : 'text-emerald-300'}>
                   {isRecording
-                    ? (language === 'fa' ? 'در حال شنیدن و بازشناسی زنده...' : 'Listening & transcribing live...')
-                    : (language === 'fa' ? 'رونویسی تکمیل شد (امکان ویرایش و کپی)' : 'Transcription complete (editable)')}
-                </span>
-                <span className="font-mono text-slate-400 text-[11px] bg-white/[0.05] px-1.5 py-0.5 rounded" dir="ltr">
-                  {formatDuration(recordingSeconds)}
+                    ? language === 'fa'
+                      ? 'در حال شنیدن...'
+                      : 'Recording...'
+                    : language === 'fa'
+                      ? 'آماده ویرایش و کپی'
+                      : 'Ready to edit & copy'}
                 </span>
               </div>
 
-              {/* Close Button */}
-              <button
-                onClick={handleCancel}
-                className="p-1 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 transition-all cursor-pointer"
-                title={language === 'fa' ? 'بستن (Esc)' : 'Close (Esc)'}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {/* Center Luminous Purple Ring + Smooth SVG Wave */}
+              <div className="relative w-full h-[68px] flex items-center justify-center overflow-hidden">
+                {/* Ambient purple radial glow */}
+                <div
+                  className={`absolute w-24 h-24 rounded-full blur-xl pointer-events-none transition-opacity duration-300 ${
+                    isRecording ? 'bg-violet-600/25 opacity-100' : 'bg-emerald-500/15 opacity-50'
+                  }`}
+                />
+                {/* Crisp outer circle */}
+                <div
+                  className={`absolute w-16 h-16 rounded-full border pointer-events-none transition-all duration-300 ${
+                    isRecording
+                      ? 'border-violet-400/50 shadow-[0_0_24px_rgba(139,92,246,0.45),inset_0_0_14px_rgba(139,92,246,0.2)]'
+                      : 'border-white/15 shadow-none'
+                  }`}
+                />
+                <svg
+                  viewBox="0 0 460 68"
+                  className="w-full h-full relative z-10 overflow-visible"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <filter id="violet-glow" x="-10%" y="-40%" width="120%" height="180%">
+                      <feGaussianBlur stdDeviation="2.4" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <linearGradient id="wave-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.15" />
+                      <stop offset="30%" stopColor="#8b5cf6" stopOpacity="0.85" />
+                      <stop offset="50%" stopColor="#c084fc" stopOpacity="1" />
+                      <stop offset="70%" stopColor="#8b5cf6" stopOpacity="0.85" />
+                      <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.15" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d={secondaryWavePath}
+                    fill="none"
+                    stroke="#7c3aed"
+                    strokeOpacity="0.4"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d={primaryWavePath}
+                    fill="none"
+                    stroke="url(#wave-grad)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    filter="url(#violet-glow)"
+                  />
+                </svg>
+              </div>
             </div>
 
-            {/* Center Area: Live Real-Time & Directly Editable Textarea */}
-            <div className="relative flex-1 my-1.5 w-full flex flex-col">
+            {/* 3. Clean Editable Transcript Area */}
+            <div className="relative flex-1 min-h-0 my-1 flex flex-col">
               <textarea
                 ref={textareaRef}
                 value={transcriptText}
@@ -465,134 +569,104 @@ export const QuickDictationOverlay: React.FC = () => {
                   setIsUserEditing(true);
                   setTranscriptText(e.target.value);
                 }}
-                onFocus={() => {
-                  // User clicked to edit
-                  setIsUserEditing(true);
-                }}
+                onFocus={() => setIsUserEditing(true)}
                 dir="auto"
-                className="w-full flex-1 p-2.5 rounded-xl bg-[#0a0b0e] border border-white/10 focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/30 text-slate-100 text-sm leading-relaxed resize-none font-sans shadow-inner transition-all select-text focus:outline-none"
+                className="w-full flex-1 px-2.5 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06] focus:border-violet-400/50 text-slate-100 text-[13.5px] leading-relaxed resize-none font-sans select-text focus:outline-none transition-colors"
                 placeholder={
                   language === 'fa'
-                    ? 'صحبت کنید؛ کلمات شما بی‌درنگ اینجا ظاهر می‌شوند و می‌توانید مستقیماً آن‌ها را ویرایش کنید...'
-                    : 'Speak now; words will appear here in real time and you can edit them directly...'
+                    ? 'صحبت کنید؛ متن به صورت زنده اینجا ظاهر می‌شود و قابل ویرایش است...'
+                    : 'Speak now; your live transcription appears here and can be edited directly...'
                 }
               />
-              {/* Subtle animated listening prompt if empty during recording */}
-              {isRecording && !transcriptText && (
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center space-x-2 space-x-reverse text-slate-400 text-xs animate-pulse select-none">
-                  <Mic className="w-4 h-4 text-cyan-400" />
-                  <span>
-                    {language === 'fa'
-                      ? 'صحبت کنید؛ کلمات شما بی‌درنگ اینجا تایپ می‌شوند...'
-                      : 'Speak now; your words appear here in real time...'}
-                  </span>
-                </div>
-              )}
             </div>
 
-            {/* Bottom Bar: Action Buttons & Equalizer / Stats */}
-            <div className="flex items-center justify-between pt-1 border-t border-white/[0.08] text-xs">
-              {/* Action Buttons */}
-              <div className="flex items-center space-x-2 space-x-reverse">
-                {/* 1. Dedicated Copy Button - ALWAYS accessible! */}
+            {/* 4. Bottom Centered Floating Frosted Pill Controls */}
+            <div className="flex items-center justify-center pt-1 shrink-0 relative">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1a1a23]/95 border border-white/[0.12] shadow-[0_8px_24px_rgba(0,0,0,0.65)]">
+                {/* Glowing Purple Mic / Record Toggle */}
+                <button
+                  onClick={isRecording ? handleStop : handleRecordAgain}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                    isRecording
+                      ? 'bg-gradient-to-tr from-violet-600 to-purple-500 text-white shadow-[0_0_16px_rgba(139,92,246,0.75)]'
+                      : 'bg-white/[0.08] hover:bg-violet-500/30 text-violet-300 border border-violet-400/30'
+                  }`}
+                  title={
+                    isRecording
+                      ? language === 'fa'
+                        ? 'توقف و بازبینی'
+                        : 'Stop & Review'
+                      : language === 'fa'
+                        ? 'ضبط مجدد'
+                        : 'Record Again'
+                  }
+                >
+                  {isRecording ? <Mic className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                </button>
+
+                {/* Pause / Stop */}
+                {isRecording && (
+                  <button
+                    onClick={handleStop}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+                    title={language === 'fa' ? 'توقف ضبط' : 'Pause / Stop'}
+                  >
+                    <Pause className="w-3.5 h-3.5 fill-current" />
+                  </button>
+                )}
+
+                <div className="w-[1px] h-4 bg-white/[0.1] mx-0.5" />
+
+                {/* Language indicator */}
+                <span className="px-2 py-0.5 text-[10px] font-mono font-semibold text-slate-300 tracking-wider">
+                  {language === 'fa' ? 'FA/EN' : 'EN/FA'}
+                </span>
+
+                {/* Copy Button */}
                 <button
                   onClick={handleCopy}
                   disabled={!transcriptText.trim()}
-                  className={`flex items-center space-x-1.5 space-x-reverse px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                  className={`flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
                     copied
-                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-emerald-500/25'
-                      : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-500/20 disabled:opacity-35 disabled:cursor-not-allowed'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                      : 'bg-white/[0.06] hover:bg-white/[0.14] text-slate-200 disabled:opacity-35 disabled:cursor-not-allowed'
                   }`}
-                  title={language === 'fa' ? 'کپی کردن متن در کلیپ‌بورد' : 'Copy text to clipboard'}
+                  title={language === 'fa' ? 'کپی متن' : 'Copy Text'}
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? (language === 'fa' ? 'کپی شد!' : 'Copied!') : (language === 'fa' ? 'کپی متن' : 'Copy Text')}</span>
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>
+                    {copied ? (language === 'fa' ? 'کپی شد' : 'Copied') : language === 'fa' ? 'کپی' : 'Copy'}
+                  </span>
                 </button>
 
-                {/* 2. Stop or Record Again */}
-                {isRecording ? (
+                {/* Paste into active app */}
+                {!isRecording && (
                   <button
-                    onClick={handleStop}
-                    className="flex items-center space-x-1.5 space-x-reverse px-3 py-1.5 rounded-xl bg-[#23252b] hover:bg-[#2c2e36] text-rose-300 hover:text-rose-200 border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer"
-                    title="توقف ضبط صدا"
+                    onClick={handlePaste}
+                    disabled={!transcriptText.trim()}
+                    className="flex items-center space-x-1 space-x-reverse px-2.5 py-1 rounded-full bg-violet-500/20 hover:bg-violet-500/35 border border-violet-400/30 text-violet-200 text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                    title="Ctrl+Enter"
                   >
-                    <Square className="w-3 h-3 fill-current text-rose-400" />
-                    <span>{language === 'fa' ? 'توقف ضبط' : 'Stop'}</span>
+                    <ClipboardPaste className="w-3 h-3" />
+                    <span>{pasted ? (language === 'fa' ? 'درج شد' : 'Pasted') : language === 'fa' ? 'درج' : 'Paste'}</span>
                   </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={handleRecordAgain}
-                      className="flex items-center space-x-1.5 space-x-reverse px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 border border-white/10 text-xs font-semibold transition-all cursor-pointer"
-                      title="شروع مجدد ضبط صدا"
-                    >
-                      <RotateCcw className="w-3 h-3 text-amber-400" />
-                      <span>{language === 'fa' ? 'ضبط مجدد' : 'Record Again'}</span>
-                    </button>
-
-                    <button
-                      onClick={handlePaste}
-                      disabled={!transcriptText.trim()}
-                      className="flex items-center space-x-1 space-x-reverse px-2.5 py-1.5 rounded-xl bg-[#23252b] hover:bg-[#2c2e36] text-slate-200 text-xs transition-colors border border-white/10 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
-                      title="درج مستقیم در برنامه فعال (Ctrl+Enter)"
-                    >
-                      <ClipboardPaste className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>{pasted ? (language === 'fa' ? 'جای‌گذاری شد!' : 'Pasted!') : (language === 'fa' ? 'درج در برنامه' : 'Paste')}</span>
-                    </button>
-                  </>
                 )}
 
-                {/* Close Button (Esc) */}
+                {/* Close Esc */}
                 <button
                   onClick={handleCancel}
-                  className="flex items-center space-x-1 space-x-reverse px-2 py-1.5 rounded-xl bg-transparent hover:bg-white/[0.05] text-slate-400 hover:text-slate-200 text-xs transition-colors cursor-pointer"
-                  title="بستن (Esc)"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-300 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                  title="Esc"
                 >
-                  <span>{language === 'fa' ? 'بستن' : 'Close'}</span>
-                  <span className="font-mono text-[10px] text-slate-500">Esc</span>
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Right Side: Soundwave Equalizer (while recording) OR Word Count (when stopped) */}
-              {isRecording ? (
-                <div className="flex items-center gap-[3px] h-6 px-1" dir="ltr">
-                  {bars.map((_, i) => {
-                    const normDist = Math.abs(i - 17.5) / 18.0;
-                    const envelope = Math.pow(Math.cos(normDist * Math.PI * 0.48), 1.1);
-
-                    const dbEnergy = Math.max(0, Math.min(1, (audioLevel.db + 58.0) / 45.0));
-                    const rmsEnergy = Math.min(1, audioLevel.rms * 35.0);
-                    const speechEnergy = Math.max(dbEnergy, rmsEnergy);
-                    const isAudioActive = audioLevel.isSpeech || speechEnergy > 0.08 || audioLevel.rms > 0.0025 || audioLevel.db > -55.0;
-
-                    let barHeightPercent: number;
-                    if (isAudioActive) {
-                      const wavePhase = Math.sin(i * 0.5 + waveTick * 0.35) * 0.35 + 0.65;
-                      const dynamicGain = Math.min(85, speechEnergy * 90 * envelope * wavePhase);
-                      barHeightPercent = Math.max(14, Math.min(95, Math.round(14 + dynamicGain)));
-                    } else {
-                      const idlePhase = Math.sin(i * 0.35 + waveTick * 0.12) * 3;
-                      barHeightPercent = Math.max(10, Math.round(15 * envelope + idlePhase));
-                    }
-
-                    return (
-                      <div
-                        key={i}
-                        className="w-[2.5px] rounded-full bg-cyan-400 transition-all duration-75 shadow-sm"
-                        style={{
-                          height: `${barHeightPercent}%`,
-                          opacity: 0.6 + (barHeightPercent / 100) * 0.4,
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2 space-x-reverse text-[11px] text-slate-400">
-                  <span className="bg-white/[0.05] px-2 py-0.5 rounded-full border border-white/5">
-                    {wordCount} {language === 'fa' ? 'کلمه' : 'words'}
-                  </span>
-                </div>
+              {/* Word count pill aligned quietly on the end */}
+              {!isRecording && wordCount > 0 && (
+                <span className="absolute end-0 text-[10px] font-mono text-slate-400 bg-white/[0.04] px-2 py-0.5 rounded-full border border-white/[0.06]">
+                  {wordCount} {language === 'fa' ? 'کلمه' : 'w'}
+                </span>
               )}
             </div>
           </div>

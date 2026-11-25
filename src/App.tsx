@@ -16,6 +16,7 @@ import { FileTranscription } from './components/FileTranscription';
 import { HistoryView } from './components/HistoryView';
 import { AboutView } from './components/about/AboutView';
 import { QuickDictationOverlay } from './components/quick-dictation/QuickDictationOverlay';
+import { TitleBar } from './components/TitleBar';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { QuickDictationSettings, UpdateInfo } from './types/asr';
 
@@ -99,14 +100,17 @@ const MainApp: React.FC = () => {
 
   return (
     <div
-      className="flex h-screen bg-[#111215] text-slate-100 overflow-hidden font-sans select-none"
+      className="flex flex-col h-screen bg-[#111215] text-slate-100 overflow-hidden font-sans select-none border border-white/[0.08]"
       dir={language === 'fa' ? 'rtl' : 'ltr'}
     >
-      {/* Murmure-style Sidebar matching Image 2 */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <TitleBar />
 
-      {/* Main Workspace Body */}
-      <main className="flex-1 flex flex-col h-full bg-[#111215] overflow-hidden relative min-w-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Murmure-style Sidebar */}
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+
+        {/* Main Workspace Body */}
+        <main className="flex-1 flex flex-col h-full bg-[#111215] overflow-hidden relative min-w-0">
         {pendingUpdate && !updateBannerDismissed && (
           <div className="mx-3 mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg shrink-0">
             <div className="flex items-center space-x-2 space-x-reverse min-w-0">
@@ -210,7 +214,8 @@ const MainApp: React.FC = () => {
 
         {/* Tab 11: À propos (About) */}
         {activeTab === 'about' && <AboutView />}
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
