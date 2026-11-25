@@ -318,7 +318,29 @@ fn sherpa_onnx_kws_model_load_and_wav_poc() {
     let silence = vec![0.0_f32; 5120];
     assert_eq!(hey_voxa_detector.accept_samples(&silence), None);
 
-    // 2. Verify Sherpa-ONNX KeywordSpotter spots real speech in upstream GigaSpeech test WAV if present.
+    // 2. Verify streaming Hey Voxa survives long ambient silence before speaking without drift.
+    let quiet_wav = std::env::temp_dir().join("16k_hey_voxa_1.wav");
+    if quiet_wav.is_file() {
+        let wave =
+            sherpa_onnx::Wave::read(&quiet_wav.to_string_lossy()).expect("read hey_voxa wav");
+        let ambient = vec![0.0005_f32; 16000 * 10]; // 10 seconds low ambient level
+        for chunk in ambient.chunks(640) {
+            assert_eq!(hey_voxa_detector.accept_samples(chunk), None);
+        }
+        let mut spotted_voxa = None;
+        for chunk in wave.samples().chunks(640) {
+            if let Some(found) = hey_voxa_detector.accept_samples(chunk) {
+                spotted_voxa = Some(found);
+                break;
+            }
+        }
+        if spotted_voxa.is_none() {
+            spotted_voxa = hey_voxa_detector.accept_samples(&vec![0.0_f32; 8000]);
+        }
+        assert_eq!(spotted_voxa.as_deref(), Some("hey_voxa"));
+    }
+
+    // 3. Verify Sherpa-ONNX KeywordSpotter spots real speech in upstream GigaSpeech test WAV if present.
     let test_wav = paths.dir.join("test_wavs").join("0.wav");
     let test_kw = paths.dir.join("test_wavs").join("test_keywords.txt");
     if test_wav.is_file() && test_kw.is_file() {

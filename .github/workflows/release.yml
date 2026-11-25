@@ -65,7 +65,7 @@ jobs:
           if ($actual -ne $expected) { throw "SHA256 mismatch: $actual != $expected" }
           New-Item -ItemType Directory -Force -Path "src-tauri/models/wakeword" | Out-Null
           tar -xjf $tmp --strip-components=1 -C "src-tauri/models/wakeword"
-          Set-Content -Path "src-tauri/models/wakeword/keywords.txt" -Value "▁HE Y ▁ VO X A @hey_voxa`n" -NoNewline -Encoding utf8
+          Set-Content -Path "src-tauri/models/wakeword/keywords.txt" -Value "▁HE Y ▁ VO X A @hey_voxa`n▁HE Y ▁ VO K S A @hey_voxa`n▁HE Y ▁WA K S A @hey_voxa`n▁HE Y ▁VA X A @hey_voxa`n" -NoNewline -Encoding utf8
           Get-Item "src-tauri/models/wakeword/encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx","src-tauri/models/wakeword/decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx","src-tauri/models/wakeword/joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx","src-tauri/models/wakeword/tokens.txt","src-tauri/models/wakeword/keywords.txt" | ForEach-Object { if ($_.Length -eq 0) { throw "Empty wakeword file: $($_.FullName)" } }
 
       - name: Download & verify offline wake-word KWS model (Unix)
@@ -84,7 +84,7 @@ jobs:
           fi
           mkdir -p src-tauri/models/wakeword
           tar -xjf "$TMP_ARCHIVE" --strip-components=1 -C src-tauri/models/wakeword
-          printf '▁HE Y ▁ VO X A @hey_voxa\n' > src-tauri/models/wakeword/keywords.txt
+          printf '▁HE Y ▁ VO X A @hey_voxa\n▁HE Y ▁ VO K S A @hey_voxa\n▁HE Y ▁WA K S A @hey_voxa\n▁HE Y ▁VA X A @hey_voxa\n' > src-tauri/models/wakeword/keywords.txt
           for f in encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx tokens.txt keywords.txt; do
             test -s "src-tauri/models/wakeword/$f"
           done

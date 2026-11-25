@@ -301,30 +301,38 @@ export const VocalModeView: React.FC = () => {
 
           <button
             type="button"
+            role="switch"
             disabled={vaSaving}
             onClick={handleToggleVoiceActivation}
-            aria-pressed={vaSettings.enabled}
-            className={`px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all shrink-0 cursor-pointer disabled:opacity-50 ${
+            aria-checked={vaSettings.enabled}
+            className={`flex items-center gap-2.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shrink-0 cursor-pointer disabled:opacity-50 whitespace-nowrap ${
               vaSettings.enabled
                 ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
                 : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-500'
             }`}
           >
-            {t('vaEnableToggle')}: {vaSettings.enabled ? 'ON' : 'OFF'}
+            <span
+              className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${
+                vaSettings.enabled ? 'bg-cyan-400 justify-end' : 'bg-slate-600 justify-start'
+              }`}
+            >
+              <span className="w-3 h-3 rounded-full bg-slate-950 shadow-sm" />
+            </span>
+            <span>{vaSettings.enabled ? t('vaToggleOn') : t('vaToggleOff')}</span>
           </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          <div className="p-3.5 rounded-xl bg-navy-950/60 border border-white/[0.06] flex items-center justify-between gap-2">
-            <span className="text-slate-400 whitespace-nowrap">{t('vaWakePhraseLabel')}</span>
-            <span className="font-mono font-semibold text-cyan-300 whitespace-nowrap">
+          <div className="p-3.5 rounded-xl bg-navy-950/60 border border-white/[0.06] flex items-center justify-between gap-2 min-w-0">
+            <span className="text-slate-400 truncate">{t('vaWakePhraseLabel')}</span>
+            <span className="font-mono font-semibold text-cyan-300 shrink-0" dir="ltr">
               {t('vaWakePhraseValue')}
             </span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-navy-950/60 border border-white/[0.06] flex items-center justify-between gap-2">
-            <span className="text-slate-400 whitespace-nowrap">{t('vaModeLabel')}</span>
-            <span className="font-semibold text-slate-200 whitespace-nowrap">
+          <div className="p-3.5 rounded-xl bg-navy-950/60 border border-white/[0.06] flex items-center justify-between gap-2 min-w-0">
+            <span className="text-slate-400 truncate">{t('vaModeLabel')}</span>
+            <span className="font-semibold text-slate-200 shrink-0">
               {t('vaModeWakeOnlyValue')}
             </span>
           </div>

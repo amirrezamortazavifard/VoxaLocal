@@ -63,22 +63,24 @@ export const HistoryView: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header bar */}
-      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
-        <div className="flex items-center space-x-3 space-x-reverse">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
-            <History className="w-5 h-5 text-cyan-400" />
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-slate-100">{t('historyTitle')}</h2>
-            <p className="text-xs text-slate-400">
-              {t('historySubtitle')}
-            </p>
+      <div className="bg-navy-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md flex flex-col gap-4 shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+              <History className="w-4.5 h-4.5 text-cyan-400" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-slate-100 truncate">{t('historyTitle')}</h2>
+              <p className="text-xs text-slate-400 truncate">
+                {t('historySubtitle')}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 space-x-reverse w-full md:w-auto">
+        <div className="flex items-center gap-3 w-full">
           {/* Search bar */}
-          <div className="relative flex-1 md:w-64">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -92,9 +94,9 @@ export const HistoryView: React.FC = () => {
           {records.length > 0 && (
             <button
               onClick={handleClearAll}
-              className="flex items-center space-x-1.5 space-x-reverse px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-medium transition-colors shrink-0 shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-medium transition-colors shrink-0 whitespace-nowrap shadow-sm cursor-pointer"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-3.5 h-3.5 shrink-0" />
               <span>{t('clearAllHistory')}</span>
             </button>
           )}

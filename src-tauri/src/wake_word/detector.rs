@@ -223,7 +223,7 @@ impl SherpaKwsDetector {
     }
 
     pub fn from_paths_default(paths: &WakeWordModelPaths) -> Result<Self, String> {
-        Self::from_paths(paths, 1.5, 0.25)
+        Self::from_paths(paths, 2.0, 0.18)
     }
 
     pub fn create_stream_with_keywords(&self, keywords: &str) -> OnlineStream {

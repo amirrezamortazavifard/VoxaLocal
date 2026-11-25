@@ -246,9 +246,12 @@ impl ShortcutManager {
             return;
         }
 
-        // 6. Modal overlay centered at bottom of active desktop monitor and shown
-        OverlayManager::center_on_active_monitor(app);
-        let _ = OverlayManager::show(app, true);
+        // 6. Modal overlay centered at bottom of active desktop monitor and shown on main thread
+        let app_ui = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            OverlayManager::center_on_active_monitor(&app_ui);
+            let _ = OverlayManager::show(&app_ui, true);
+        });
 
         // 7. Notify state machine and UI
         self.state_machine.write().on_started();
