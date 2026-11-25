@@ -208,3 +208,29 @@ export interface UpdateCheckResult {
   latestVersion?: string | null;
   offlineOrSkipped: boolean;
 }
+
+export type VoiceActivationMode = 'wake_only';
+
+export type VoiceActivationState =
+  | 'disabled'
+  | 'starting'
+  | 'listening'
+  | 'triggered'
+  | 'paused_for_recording'
+  | 'stopping'
+  | 'error';
+
+export interface VoiceActivationSettings {
+  enabled: boolean;
+  wakePhrase: string;
+  mode: VoiceActivationMode;
+}
+
+export interface VoiceActivationStatusPayload {
+  enabled: boolean;
+  state: VoiceActivationState;
+  wakePhrase: string;
+  mode: VoiceActivationMode;
+  errorMessage?: string | null;
+  modelReady: boolean;
+}

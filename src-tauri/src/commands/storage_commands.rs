@@ -1,9 +1,11 @@
+use crate::storage::{HistoryRepository, SettingsRepository, TranscriptRecord};
 use std::sync::Arc;
 use tauri::State;
-use crate::storage::{HistoryRepository, SettingsRepository, TranscriptRecord};
 
 #[tauri::command]
-pub fn get_history(history_repo: State<'_, Arc<HistoryRepository>>) -> Result<Vec<TranscriptRecord>, String> {
+pub fn get_history(
+    history_repo: State<'_, Arc<HistoryRepository>>,
+) -> Result<Vec<TranscriptRecord>, String> {
     history_repo.list_all()
 }
 

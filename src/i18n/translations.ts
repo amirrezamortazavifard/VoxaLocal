@@ -223,6 +223,27 @@ export const translations = {
 
     // Common
     uiLanguage: 'زبان نرم‌افزار:',
+
+    // Voice Activation (Wake Word)
+    vaSectionTitle: 'فعال‌سازی صوتی (کلمه بیدارباش آفلاین)',
+    vaSectionDesc: 'شروع خودکار دیکته سریع تنها با گفتن عبارت «Hey Voxa» بدون نیاز به فشردن کلید میانبر.',
+    vaEnableToggle: 'فعال‌سازی شنود بیدارباش «Hey Voxa»',
+    vaWakePhraseLabel: 'عبارت بیدارباش:',
+    vaWakePhraseValue: 'Hey Voxa (انگلیسی ثابت)',
+    vaModeLabel: 'حالت فعال‌سازی:',
+    vaModeWakeOnlyValue: 'فقط بیدارباش (Wake Only)',
+    vaModeWakeOnlyHint: 'عبارت «Hey Voxa» صرفاً پنجره دیکته را باز می‌کند و در متن نهایی نوشته نمی‌شود.',
+    vaPrivacyNotice: 'پردازش ۱۰۰٪ آفلاین روی CPU — صدای حالت آماده‌باش هرگز ذخیره یا ارسال نمی‌شود و هنگام ضبط یا باز بودن نتیجه متوقف می‌گردد.',
+    vaStatusLabel: 'وضعیت شنود:',
+    vaStatusDisabled: 'غیرفعال',
+    vaStatusStarting: 'در حال راه‌اندازی...',
+    vaStatusListening: 'در حال گوش دادن («Hey Voxa»)',
+    vaStatusTriggered: 'تشخیص داده شد!',
+    vaStatusPausedForRecording: 'متوقف موقت (حین ضبط / نتیجه)',
+    vaStatusStopping: 'در حال توقف...',
+    vaStatusError: 'خطا در مدل یا میکروفون',
+    vaModelReady: 'مدل آفلاین آماده',
+    vaModelMissing: 'فایل‌های مدل یافت نشد (کلید میانبر همچنان فعال است)',
   },
   en: {
     // Brand & Header
@@ -446,5 +467,26 @@ export const translations = {
 
     // Common
     uiLanguage: 'App Language:',
+
+    // Voice Activation (Wake Word)
+    vaSectionTitle: 'Voice Activation (Offline Wake Word)',
+    vaSectionDesc: 'Hands-free launch of Quick Dictation by saying "Hey Voxa" without pressing the global shortcut.',
+    vaEnableToggle: 'Enable "Hey Voxa" Wake Word',
+    vaWakePhraseLabel: 'Wake Phrase:',
+    vaWakePhraseValue: 'Hey Voxa (Fixed English)',
+    vaModeLabel: 'Activation Mode:',
+    vaModeWakeOnlyValue: 'Wake Only',
+    vaModeWakeOnlyHint: '"Hey Voxa" opens Quick Dictation and is not transcribed into your dictated text.',
+    vaPrivacyNotice: '100% offline CPU keyword spotting — standby audio is never saved or transmitted and pauses automatically while recording or reviewing.',
+    vaStatusLabel: 'Listener Status:',
+    vaStatusDisabled: 'Disabled',
+    vaStatusStarting: 'Starting...',
+    vaStatusListening: 'Listening ("Hey Voxa")',
+    vaStatusTriggered: 'Triggered!',
+    vaStatusPausedForRecording: 'Paused (Recording / Result Open)',
+    vaStatusStopping: 'Stopping...',
+    vaStatusError: 'Error',
+    vaModelReady: 'Offline KWS Model Ready',
+    vaModelMissing: 'Wake word model missing (hotkeys unaffected)',
   },
 };

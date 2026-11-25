@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 use symphonia::core::audio::{AudioBufferRef, SampleBuffer, Signal};
 use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL, CODEC_TYPE_OPUS};
 use symphonia::core::errors::Error as SymphoniaError;
@@ -83,19 +83,14 @@ pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
         .ok_or_else(|| "No supported audio track found in file".to_string())?;
 
     let track_id = track.id;
-    let sample_rate = track
-        .codec_params
-        .sample_rate
-        .unwrap_or(48000);
-    let channels = track
-        .codec_params
-        .channels
-        .map(|c| c.count())
-        .unwrap_or(1);
+    let sample_rate = track.codec_params.sample_rate.unwrap_or(48000);
+    let channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
 
     // Native Opus decoder path for OGG/Opus voice messages (Telegram, WhatsApp, etc.)
     if track.codec_params.codec == CODEC_TYPE_OPUS {
-        log::info!("Decoding Ogg/Opus audio track using native Opus decoder (channels: {channels})");
+        log::info!(
+            "Decoding Ogg/Opus audio track using native Opus decoder (channels: {channels})"
+        );
         let channels_type = if channels == 1 {
             opus::Channels::Mono
         } else {
@@ -108,7 +103,11 @@ pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
         loop {
             let packet = match format.next_packet() {
                 Ok(packet) => packet,
-                Err(SymphoniaError::IoError(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+                Err(SymphoniaError::IoError(ref e))
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
+                    break
+                }
                 Err(SymphoniaError::ResetRequired) => continue,
                 Err(e) => {
                     log::warn!("Opus audio stream end/error: {e}");
@@ -146,7 +145,10 @@ pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
             }
         }
 
-        log::info!("Successfully decoded {} Opus audio samples at 48kHz", mono_samples.len());
+        log::info!(
+            "Successfully decoded {} Opus audio samples at 48kHz",
+            mono_samples.len()
+        );
         return Ok((mono_samples, 48000));
     }
 
@@ -160,7 +162,11 @@ pub fn decode_audio_file(file_path: &Path) -> Result<(Vec<f32>, u32), String> {
     loop {
         let packet = match format.next_packet() {
             Ok(packet) => packet,
-            Err(SymphoniaError::IoError(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+            Err(SymphoniaError::IoError(ref e))
+                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break
+            }
             Err(SymphoniaError::ResetRequired) => continue,
             Err(e) => {
                 log::warn!("Audio decoding encountered error/end: {e}");
@@ -261,7 +267,8 @@ fn resample_to_16k(raw_samples: Vec<f32>, sample_rate: u32) -> Result<Vec<f32>, 
         return Ok(raw_samples);
     }
 
-    let expected_len = ((raw_samples.len() as u64 * 16000) / sample_rate.max(1) as u64) as usize + 1280;
+    let expected_len =
+        ((raw_samples.len() as u64 * 16000) / sample_rate.max(1) as u64) as usize + 1280;
     let mut pcm_16k = Vec::with_capacity(expected_len);
     let mut resampler = AudioResampler::new(sample_rate, 16000)?;
 
@@ -280,7 +287,10 @@ pub fn transcribe_file(
     language_mode: &str,
     beam_width: usize,
 ) -> Result<FileTranscriptionResult, String> {
-    log::info!("Starting file transcription for {:?} (lang: {language_mode}, beam: {beam_width})", file_path);
+    log::info!(
+        "Starting file transcription for {:?} (lang: {language_mode}, beam: {beam_width})",
+        file_path
+    );
 
     let models = model_manager
         .loaded_models()
@@ -299,12 +309,8 @@ pub fn transcribe_file(
         _ => vec!["fa", "en"],
     };
 
-    let transcription = tinyasr::Transcription::new(
-        &*models,
-        &pcm_16k,
-        &langs_vec,
-        beam_width.max(1),
-    );
+    let transcription =
+        tinyasr::Transcription::new(&*models, &pcm_16k, &langs_vec, beam_width.max(1));
 
     let duration = transcription.duration();
     let mut all_words = Vec::new();
@@ -354,7 +360,10 @@ pub fn generate_srt(words: &[WordItem]) -> String {
         let last_w = current_segment.last().unwrap();
         let gap = w.start - last_w.end;
         let seg_duration = w.end - segment_start;
-        let is_sentence_end = last_w.text.ends_with('.') || last_w.text.ends_with('!') || last_w.text.ends_with('?') || last_w.text.ends_with('؟');
+        let is_sentence_end = last_w.text.ends_with('.')
+            || last_w.text.ends_with('!')
+            || last_w.text.ends_with('?')
+            || last_w.text.ends_with('؟');
 
         if current_segment.len() >= 8 || gap > 0.4 || seg_duration > 4.5 || is_sentence_end {
             segments.push((segment_start, last_w.end, current_segment.clone()));
@@ -384,7 +393,9 @@ pub fn generate_srt(words: &[WordItem]) -> String {
             seg_text.push_str(&w.text);
         }
 
-        srt.push_str(&format!("{seg_num}\n{start_ts} --> {end_ts}\n{seg_text}\n\n"));
+        srt.push_str(&format!(
+            "{seg_num}\n{start_ts} --> {end_ts}\n{seg_text}\n\n"
+        ));
     }
 
     srt
@@ -480,7 +491,10 @@ pub fn start_file_transcription_job(
     let cancel_flag = Arc::clone(&file_manager.cancel_flag);
 
     std::thread::spawn(move || {
-        log::info!("[FileTranscribe {thread_job_id}] Decoding audio file {:?}", file_path_buf);
+        log::info!(
+            "[FileTranscribe {thread_job_id}] Decoding audio file {:?}",
+            file_path_buf
+        );
 
         let (raw_samples, sample_rate) = match decode_audio_file(&file_path_buf) {
             Ok(res) => res,
@@ -492,7 +506,10 @@ pub fn start_file_transcription_job(
         };
 
         if raw_samples.is_empty() {
-            let _ = app.emit("file-transcribe://error", "Audio file is empty or could not be decoded".to_string());
+            let _ = app.emit(
+                "file-transcribe://error",
+                "Audio file is empty or could not be decoded".to_string(),
+            );
             return;
         }
 
@@ -516,24 +533,23 @@ pub fn start_file_transcription_job(
             _ => vec!["fa", "en"],
         };
 
-        let mut transcription = tinyasr::Transcription::new(
-            &*models,
-            &pcm_16k,
-            &langs_vec,
-            beam_width.max(1),
-        );
+        let mut transcription =
+            tinyasr::Transcription::new(&*models, &pcm_16k, &langs_vec, beam_width.max(1));
 
         let total_duration = transcription.duration();
         let mut all_words = Vec::new();
 
         // Emit initial progress at 0.0%
-        let _ = app.emit("file-transcribe://progress", FileTranscribeProgressPayload {
-            job_id: thread_job_id.clone(),
-            progress: 0.0,
-            current_secs: 0.0,
-            total_secs: total_duration,
-            new_words: Vec::new(),
-        });
+        let _ = app.emit(
+            "file-transcribe://progress",
+            FileTranscribeProgressPayload {
+                job_id: thread_job_id.clone(),
+                progress: 0.0,
+                current_secs: 0.0,
+                total_secs: total_duration,
+                new_words: Vec::new(),
+            },
+        );
 
         while let Some(piece) = transcription.next() {
             if cancel_flag.load(Ordering::SeqCst) {
@@ -552,13 +568,16 @@ pub fn start_file_transcription_job(
             let new_words: Vec<WordItem> = piece.into_iter().map(WordItem::from).collect();
             all_words.extend(new_words.clone());
 
-            let _ = app.emit("file-transcribe://progress", FileTranscribeProgressPayload {
-                job_id: thread_job_id.clone(),
-                progress,
-                current_secs: current_pos,
-                total_secs: total_duration,
-                new_words,
-            });
+            let _ = app.emit(
+                "file-transcribe://progress",
+                FileTranscribeProgressPayload {
+                    job_id: thread_job_id.clone(),
+                    progress,
+                    current_secs: current_pos,
+                    total_secs: total_duration,
+                    new_words,
+                },
+            );
         }
 
         // Build plain text
@@ -572,14 +591,19 @@ pub fn start_file_transcription_job(
 
         let srt_content = generate_srt(&all_words);
 
-        log::info!("[FileTranscribe {thread_job_id}] Transcription completed successfully. Emitting done.");
-        let _ = app.emit("file-transcribe://done", FileTranscriptionResult {
-            text: full_text,
-            words: all_words,
-            srt_content,
-            duration_secs: total_duration,
-            language: lang,
-        });
+        log::info!(
+            "[FileTranscribe {thread_job_id}] Transcription completed successfully. Emitting done."
+        );
+        let _ = app.emit(
+            "file-transcribe://done",
+            FileTranscriptionResult {
+                text: full_text,
+                words: all_words,
+                srt_content,
+                duration_secs: total_duration,
+                language: lang,
+            },
+        );
     });
 
     Ok(job_id)

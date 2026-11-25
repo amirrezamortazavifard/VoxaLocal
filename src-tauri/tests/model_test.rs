@@ -1,11 +1,13 @@
-use std::io::Read;
 use flate2::read::GzDecoder;
+use std::io::Read;
 
 fn decompress_gz(bytes: &[u8]) -> Vec<u8> {
     if bytes.starts_with(&[0x1f, 0x8b]) {
         let mut decoder = GzDecoder::new(bytes);
         let mut out = Vec::new();
-        decoder.read_to_end(&mut out).expect("Failed to decompress gz");
+        decoder
+            .read_to_end(&mut out)
+            .expect("Failed to decompress gz");
         out
     } else {
         bytes.to_vec()
@@ -21,20 +23,31 @@ fn test_load_en_fa_and_vad() {
         .or_else(|_| std::fs::read("../vendor/tinyasr/models/silero_vad.onnx.gz"))
         .expect("Missing silero_vad.onnx.gz");
 
-    println!("Decompressing asr model ({} bytes compressed)...", asr_gz.len());
+    println!(
+        "Decompressing asr model ({} bytes compressed)...",
+        asr_gz.len()
+    );
     let asr_raw = decompress_gz(&asr_gz);
     println!("ASR uncompressed size: {} bytes", asr_raw.len());
 
-    println!("Decompressing vad model ({} bytes compressed)...", vad_gz.len());
+    println!(
+        "Decompressing vad model ({} bytes compressed)...",
+        vad_gz.len()
+    );
     let vad_raw = decompress_gz(&vad_gz);
     println!("VAD uncompressed size: {} bytes", vad_raw.len());
 
-    assert_eq!(&asr_raw[0..4], b"TZF3", "Expected TZF3 header for en-fa model");
+    assert_eq!(
+        &asr_raw[0..4],
+        b"TZF3",
+        "Expected TZF3 header for en-fa model"
+    );
 
     let models = tinyasr::Models::load(tinyasr::Files {
         asr: &asr_raw,
         vad: &vad_raw,
-    }).expect("Failed to load models");
+    })
+    .expect("Failed to load models");
 
     let langs = models.langs();
     println!("Available languages in en-fa model: {:?}", langs);

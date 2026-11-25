@@ -1,6 +1,9 @@
+use std::sync::Arc;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
+
+use crate::wake_word::WakeWordService;
 
 pub struct TrayManager;
 
@@ -24,14 +27,8 @@ impl TrayManager {
         )
         .map_err(|e| format!("Failed to create menu item: {e}"))?;
 
-        let quit_item = MenuItem::with_id(
-            app,
-            "quit",
-            "Quit VoxaLocal",
-            true,
-            None::<&str>,
-        )
-        .map_err(|e| format!("Failed to create menu item: {e}"))?;
+        let quit_item = MenuItem::with_id(app, "quit", "Quit VoxaLocal", true, None::<&str>)
+            .map_err(|e| format!("Failed to create menu item: {e}"))?;
 
         let menu = Menu::with_items(app, &[&open_item, &status_item, &quit_item])
             .map_err(|e| format!("Failed to create tray menu: {e}"))?;
@@ -56,6 +53,9 @@ impl TrayManager {
                 }
                 "quit" => {
                     log::info!("User initiated application exit from system tray.");
+                    if let Some(wake_word) = app.try_state::<Arc<WakeWordService>>() {
+                        wake_word.shutdown();
+                    }
                     app.exit(0);
                 }
                 _ => {}

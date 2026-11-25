@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Mic, Check } from 'lucide-react';
-import { QuickDictationSettings } from '../../types/asr';
+import { listen } from '@tauri-apps/api/event';
+import { Mic, Check, Sparkles, ShieldCheck, AlertTriangle } from 'lucide-react';
+import {
+  QuickDictationSettings,
+  VoiceActivationSettings,
+  VoiceActivationState,
+  VoiceActivationStatusPayload,
+} from '../../types/asr';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 export const VocalModeView: React.FC = () => {
@@ -11,6 +17,21 @@ export const VocalModeView: React.FC = () => {
   const [silenceTimeout, setSilenceTimeout] = useState(3.0);
   const [soundFeedback, setSoundFeedback] = useState(true);
   const [savedFeedback, setSavedFeedback] = useState(false);
+
+  const [vaSettings, setVaSettings] = useState<VoiceActivationSettings>({
+    enabled: false,
+    wakePhrase: 'hey_voxa',
+    mode: 'wake_only',
+  });
+  const [vaStatus, setVaStatus] = useState<VoiceActivationStatusPayload>({
+    enabled: false,
+    state: 'disabled',
+    wakePhrase: 'hey_voxa',
+    mode: 'wake_only',
+    errorMessage: null,
+    modelReady: false,
+  });
+  const [vaSaving, setVaSaving] = useState(false);
 
   useEffect(() => {
     invoke<QuickDictationSettings>('get_quick_dictation_settings')
@@ -31,7 +52,83 @@ export const VocalModeView: React.FC = () => {
         }
       })
       .catch(console.error);
+
+    invoke<VoiceActivationSettings>('get_voice_activation_settings')
+      .then((s) => setVaSettings(s))
+      .catch(console.error);
+
+    invoke<VoiceActivationStatusPayload>('get_voice_activation_status')
+      .then((st) => setVaStatus(st))
+      .catch(console.error);
+
+    const unlistenPromise = listen<VoiceActivationStatusPayload>(
+      'voice-activation://status',
+      (event) => {
+        setVaStatus(event.payload);
+      },
+    );
+
+    return () => {
+      unlistenPromise.then((fn) => fn()).catch(() => {});
+    };
   }, []);
+
+  const handleToggleVoiceActivation = async () => {
+    if (vaSaving) return;
+    setVaSaving(true);
+    const nextSettings: VoiceActivationSettings = {
+      enabled: !vaSettings.enabled,
+      wakePhrase: 'hey_voxa',
+      mode: 'wake_only',
+    };
+    try {
+      const updated = await invoke<VoiceActivationSettings>('update_voice_activation_settings', {
+        settings: nextSettings,
+      });
+      setVaSettings(updated);
+      const status = await invoke<VoiceActivationStatusPayload>('get_voice_activation_status');
+      setVaStatus(status);
+    } catch (err) {
+      console.error('Failed to toggle Voice Activation:', err);
+    } finally {
+      setVaSaving(false);
+    }
+  };
+
+  const renderVaStateLabel = (state: VoiceActivationState) => {
+    switch (state) {
+      case 'disabled':
+        return t('vaStatusDisabled');
+      case 'starting':
+        return t('vaStatusStarting');
+      case 'listening':
+        return t('vaStatusListening');
+      case 'triggered':
+        return t('vaStatusTriggered');
+      case 'paused_for_recording':
+        return t('vaStatusPausedForRecording');
+      case 'stopping':
+        return t('vaStatusStopping');
+      case 'error':
+        return t('vaStatusError');
+    }
+  };
+
+  const vaBadgeStyle = (state: VoiceActivationState) => {
+    switch (state) {
+      case 'listening':
+        return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+      case 'triggered':
+      case 'starting':
+        return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+      case 'paused_for_recording':
+        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      case 'error':
+        return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
+      default:
+        return 'bg-slate-800/80 text-slate-400 border-slate-700/60';
+    }
+  };
 
   const handleSave = async (newMode: 'pushToTalk' | 'toggle') => {
     setMode(newMode);
@@ -186,6 +283,87 @@ export const VocalModeView: React.FC = () => {
           >
             {t('saveSettings')}
           </button>
+        </div>
+      </div>
+
+      {/* Offline Voice Activation (Wake Word) */}
+      <div className="bg-[#18191d] border border-white/[0.08] rounded-2xl p-6 shadow-xl space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>{t('vaSectionTitle')}</span>
+            </h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {t('vaSectionDesc')}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={vaSaving}
+            onClick={handleToggleVoiceActivation}
+            aria-pressed={vaSettings.enabled}
+            className={`px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all shrink-0 cursor-pointer disabled:opacity-50 ${
+              vaSettings.enabled
+                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
+                : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-500'
+            }`}
+          >
+            {t('vaEnableToggle')}: {vaSettings.enabled ? 'ON' : 'OFF'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div className="p-3.5 rounded-xl bg-navy-950/60 border border-white/[0.06] flex items-center justify-between gap-2">
+            <span className="text-slate-400 whitespace-nowrap">{t('vaWakePhraseLabel')}</span>
+            <span className="font-mono font-semibold text-cyan-300 whitespace-nowrap">
+              {t('vaWakePhraseValue')}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-navy-950/60 border border-white/[0.06] flex items-center justify-between gap-2">
+            <span className="text-slate-400 whitespace-nowrap">{t('vaModeLabel')}</span>
+            <span className="font-semibold text-slate-200 whitespace-nowrap">
+              {t('vaModeWakeOnlyValue')}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400 whitespace-nowrap">{t('vaStatusLabel')}</span>
+            <span
+              className={`px-2.5 py-1 rounded-lg border font-medium whitespace-nowrap ${vaBadgeStyle(
+                vaStatus.state,
+              )}`}
+            >
+              {renderVaStateLabel(vaStatus.state)}
+            </span>
+          </div>
+
+          <span
+            className={`text-[11px] font-medium whitespace-nowrap ${
+              vaStatus.modelReady ? 'text-emerald-400' : 'text-amber-400'
+            }`}
+          >
+            {vaStatus.modelReady ? t('vaModelReady') : t('vaModelMissing')}
+          </span>
+        </div>
+
+        {vaStatus.errorMessage && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="break-words">{vaStatus.errorMessage}</span>
+          </div>
+        )}
+
+        <div className="p-3.5 rounded-xl bg-cyan-500/[0.05] border border-cyan-500/20 text-[11px] text-slate-300 space-y-1">
+          <div className="flex items-center gap-1.5 text-cyan-300 font-semibold">
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('vaModeWakeOnlyHint')}</span>
+          </div>
+          <p className="text-slate-400 leading-relaxed">{t('vaPrivacyNotice')}</p>
         </div>
       </div>
     </div>

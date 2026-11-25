@@ -1,11 +1,11 @@
+use crate::asr::ModelManager;
+use crate::commands::file_commands::{
+    cancel_file_transcription_job, get_waveform_info, start_file_transcription_job,
+    transcribe_file, FileTranscriptionManager, FileTranscriptionResult, FileWaveformInfo,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
-use crate::asr::ModelManager;
-use crate::commands::file_commands::{
-    cancel_file_transcription_job, get_waveform_info, start_file_transcription_job, transcribe_file,
-    FileTranscriptionManager, FileTranscriptionResult, FileWaveformInfo,
-};
 
 #[tauri::command]
 pub fn get_audio_file_waveform(

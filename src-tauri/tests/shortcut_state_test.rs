@@ -12,7 +12,10 @@ fn test_push_to_talk_lifecycle() {
 
     // Repeated OS keypresses (key repeat) while starting must be ignored
     let duplicate_press = sm.on_press();
-    assert!(!duplicate_press, "Key repeat during starting must not trigger new sessions");
+    assert!(
+        !duplicate_press,
+        "Key repeat during starting must not trigger new sessions"
+    );
     assert_eq!(sm.state(), PttState::Starting);
 
     // Startup finishes
@@ -52,7 +55,10 @@ fn test_ptt_released_during_startup_race() {
 
     // Once startup completes, on_started returns true indicating an immediate stop is required
     let immediate_stop = sm.on_started();
-    assert!(immediate_stop, "Pending release must immediately trigger stop on start");
+    assert!(
+        immediate_stop,
+        "Pending release must immediately trigger stop on start"
+    );
     assert_eq!(sm.state(), PttState::Finalizing);
 
     sm.on_finalized();
@@ -68,7 +74,11 @@ fn test_shortcut_parsing() {
 
     let s2 = "Ctrl+Shift+Space".parse::<Shortcut>();
     println!("Ctrl+Shift+Space parse result: {:?}", s2);
-    assert!(s2.is_ok(), "Failed to parse Ctrl+Shift+Space: {:?}", s2.err());
+    assert!(
+        s2.is_ok(),
+        "Failed to parse Ctrl+Shift+Space: {:?}",
+        s2.err()
+    );
 }
 
 #[test]

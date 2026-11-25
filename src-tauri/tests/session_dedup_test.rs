@@ -52,7 +52,11 @@ fn test_word_timestamp_deduplication() {
         .filter(|w| w.start >= last_committed_end - 0.05)
         .collect();
 
-    assert_eq!(filtered_dup.len(), 0, "Duplicate batch must be completely filtered out");
+    assert_eq!(
+        filtered_dup.len(),
+        0,
+        "Duplicate batch must be completely filtered out"
+    );
 
     // Subsequent sentence arrives (new timestamps)
     let incoming_batch_2 = vec![
@@ -75,7 +79,11 @@ fn test_word_timestamp_deduplication() {
         .filter(|w| w.start >= last_committed_end - 0.05)
         .collect();
 
-    assert_eq!(filtered_2.len(), 2, "New sentence with valid timestamps must pass");
+    assert_eq!(
+        filtered_2.len(),
+        2,
+        "New sentence with valid timestamps must pass"
+    );
     if let Some(last) = filtered_2.last() {
         last_committed_end = last.end;
     }

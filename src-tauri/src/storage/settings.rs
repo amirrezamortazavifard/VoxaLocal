@@ -22,7 +22,9 @@ impl SettingsRepository {
             .map_err(|e| format!("Failed to execute query: {e}"))?;
 
         if let Some(row) = rows.next().map_err(|e| format!("Error reading row: {e}"))? {
-            let val: String = row.get(0).map_err(|e| format!("Error getting string: {e}"))?;
+            let val: String = row
+                .get(0)
+                .map_err(|e| format!("Error getting string: {e}"))?;
             Ok(Some(val))
         } else {
             Ok(None)

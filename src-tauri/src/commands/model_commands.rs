@@ -50,14 +50,34 @@ pub struct ModelDownloadProgressPayload {
 
 fn describe_model(stem: &str) -> (&'static str, &'static str, Vec<&'static str>) {
     match stem {
-        "en-fa.tzf" => ("فارسی + انگلیسی (پیش‌فرض)", "Persian + English (Default)", vec!["FA", "EN"]),
-        "ar.tzf" => ("عربی (استاندارد و گویش‌ها)", "Arabic (Standard & Dialects)", vec!["AR"]),
+        "en-fa.tzf" => (
+            "فارسی + انگلیسی (پیش‌فرض)",
+            "Persian + English (Default)",
+            vec!["FA", "EN"],
+        ),
+        "ar.tzf" => (
+            "عربی (استاندارد و گویش‌ها)",
+            "Arabic (Standard & Dialects)",
+            vec!["AR"],
+        ),
         "fr-de.tzf" => ("فرانسوی + آلمانی", "French + German", vec!["FR", "DE"]),
-        "en-es-it-pt.tzf" => ("انگلیسی + اسپانیایی + ایتالیایی + پرتغالی", "English + Spanish + Italian + Portuguese", vec!["EN", "ES", "IT", "PT"]),
-        "en-ru-uk.tzf" => ("انگلیسی + روسی + اوکراینی", "English + Russian + Ukrainian", vec!["EN", "RU", "UK"]),
+        "en-es-it-pt.tzf" => (
+            "انگلیسی + اسپانیایی + ایتالیایی + پرتغالی",
+            "English + Spanish + Italian + Portuguese",
+            vec!["EN", "ES", "IT", "PT"],
+        ),
+        "en-ru-uk.tzf" => (
+            "انگلیسی + روسی + اوکراینی",
+            "English + Russian + Ukrainian",
+            vec!["EN", "RU", "UK"],
+        ),
         "en-km.tzf" => ("انگلیسی + خمری", "English + Khmer", vec!["EN", "KM"]),
         "id-ms.tzf" => ("اندونزیایی + مالایی", "Indonesian + Malay", vec!["ID", "MS"]),
-        "uz.tzf" => ("ازبکی (لاتین و سیریلیک)", "Uzbek (Latin & Cyrillic)", vec!["UZ"]),
+        "uz.tzf" => (
+            "ازبکی (لاتین و سیریلیک)",
+            "Uzbek (Latin & Cyrillic)",
+            vec!["UZ"],
+        ),
         _ => ("مدل گفتار TinyASR", "TinyASR Speech Model", vec!["ASR"]),
     }
 }

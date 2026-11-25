@@ -145,4 +145,14 @@ impl PttStateMachine {
         self.current_state = PttState::Error;
         self.stop_pending = false;
     }
+
+    pub fn can_start_from_wake_word(ptt_state: PttState, asr_is_recording: bool) -> bool {
+        if asr_is_recording {
+            return false;
+        }
+        !matches!(
+            ptt_state,
+            PttState::Starting | PttState::Recording | PttState::Finalizing | PttState::Result
+        )
+    }
 }

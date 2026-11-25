@@ -122,8 +122,12 @@ Real-time audio processing requires strict thread isolation to prevent audio gli
    - Preserves target window focus during recording using Windows Win32 `SW_SHOWNOACTIVATE`.
    - Restores the original foreground window and injects synthetic `Ctrl + V` keystrokes via `SendInput` on paste.
 
-5. **System Tray & Background Lifecycle**:
-   - Closes to system tray instead of exiting when the main Studio window is closed, keeping the global hotkey alive.
+5. **Offline Voice Activation (Opt-In Wake Word)**:
+   - Managed by `WakeWordService` (`src-tauri/src/wake_word/`), disabled by default, supporting fixed English `Hey Voxa` (`hey_voxa`) in `wake_only` mode.
+   - Enforces exclusive single-owner microphone access: `WakeWordService` releases its standby CPAL stream cleanly before handing off via `ShortcutManager::trigger_start_from_wake_word`, and pauses automatically during Quick Dictation, open result overlays, and Studio recording.
+
+6. **System Tray & Background Lifecycle**:
+   - Closes to system tray instead of exiting when the main Studio window is closed, keeping the global hotkey and enabled wake-word listener alive.
    - Clean shutdown upon selecting "Quit" from the tray menu.
 
 ---

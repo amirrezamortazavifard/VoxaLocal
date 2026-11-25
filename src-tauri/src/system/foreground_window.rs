@@ -47,7 +47,11 @@ pub fn restore_saved_foreground_window() -> bool {
         unsafe {
             let res = SetForegroundWindow(hwnd);
             BringWindowToTop(hwnd);
-            log::info!("Restored foreground window HWND {:#x}, result: {}", val, res != 0);
+            log::info!(
+                "Restored foreground window HWND {:#x}, result: {}",
+                val,
+                res != 0
+            );
             return res != 0;
         }
     }

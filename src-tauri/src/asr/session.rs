@@ -1,6 +1,6 @@
+use crossbeam_channel::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use crossbeam_channel::{Receiver, Sender};
 use tauri::{AppHandle, Emitter};
 
 use crate::asr::events::{
@@ -120,11 +120,14 @@ fn dispatch_events(
                     .filter(|w| *last_committed_end < 0.0 || w.start >= *last_committed_end - 0.05)
                     .collect();
 
-                let _ = app.emit("asr://partial", PartialEventPayload {
-                    session_id: session_id.to_string(),
-                    open: valid_open,
-                    tail: valid_tail,
-                });
+                let _ = app.emit(
+                    "asr://partial",
+                    PartialEventPayload {
+                        session_id: session_id.to_string(),
+                        open: valid_open,
+                        tail: valid_tail,
+                    },
+                );
             }
             tinyasr::Event::Commit(words) => {
                 let valid_words: Vec<WordItem> = words
@@ -142,24 +145,33 @@ fn dispatch_events(
                         valid_words.len(),
                         *last_committed_end,
                     );
-                    let _ = app.emit("asr://commit", CommitEventPayload {
-                        session_id: session_id.to_string(),
-                        words: valid_words,
-                    });
+                    let _ = app.emit(
+                        "asr://commit",
+                        CommitEventPayload {
+                            session_id: session_id.to_string(),
+                            words: valid_words,
+                        },
+                    );
                 }
             }
             tinyasr::Event::Language(lang) => {
-                let _ = app.emit("asr://language", LanguageEventPayload {
-                    session_id: session_id.to_string(),
-                    lang,
-                });
+                let _ = app.emit(
+                    "asr://language",
+                    LanguageEventPayload {
+                        session_id: session_id.to_string(),
+                        lang,
+                    },
+                );
             }
             tinyasr::Event::Eou { at, p } => {
-                let _ = app.emit("asr://eou", EouEventPayload {
-                    session_id: session_id.to_string(),
-                    at,
-                    p,
-                });
+                let _ = app.emit(
+                    "asr://eou",
+                    EouEventPayload {
+                        session_id: session_id.to_string(),
+                        at,
+                        p,
+                    },
+                );
             }
         }
     }

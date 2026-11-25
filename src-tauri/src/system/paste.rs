@@ -1,6 +1,6 @@
+use crate::system::foreground_window::restore_saved_foreground_window;
 use std::thread;
 use std::time::Duration;
-use crate::system::foreground_window::restore_saved_foreground_window;
 
 /// Pastes text into the previously focused application window.
 /// 1. Copies text to clipboard.
@@ -29,8 +29,12 @@ pub fn paste_text_to_active_app(text: &str) -> Result<(), String> {
 fn set_clipboard_text(text: &str) -> Result<(), String> {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
-        use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData};
+        use windows_sys::Win32::System::DataExchange::{
+            CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+        };
+        use windows_sys::Win32::System::Memory::{
+            GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE,
+        };
 
         // Convert string to UTF-16 with null terminator
         let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
@@ -63,13 +67,19 @@ fn set_clipboard_text(text: &str) -> Result<(), String> {
             CloseClipboard();
         }
 
-        log::info!("Successfully copied {} UTF-16 units to system clipboard", wide.len());
+        log::info!(
+            "Successfully copied {} UTF-16 units to system clipboard",
+            wide.len()
+        );
         Ok(())
     }
 
     #[cfg(not(windows))]
     {
-        log::info!("Clipboard copy fallback on non-Windows: {} chars", text.len());
+        log::info!(
+            "Clipboard copy fallback on non-Windows: {} chars",
+            text.len()
+        );
         Ok(())
     }
 }
@@ -78,8 +88,7 @@ fn send_paste_shortcut() -> Result<(), String> {
     #[cfg(windows)]
     {
         use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
-            VK_CONTROL,
+            SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_CONTROL,
         };
 
         const VK_V_KEY: u16 = 0x56; // Virtual key code for 'V'

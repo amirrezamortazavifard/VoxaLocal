@@ -1,14 +1,16 @@
-use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::asr::{AsrEngine, SessionOrigin};
 use crate::audio::AudioCapture;
+use crate::commands::voice_activation_commands::is_voice_activation_paused_for_recording;
 use crate::overlay::manager::OverlayManager;
 use crate::shortcuts::state_machine::{PttMode, PttState, PttStateMachine};
 use crate::system::foreground_window::capture_foreground_window;
+use crate::wake_word::WakeWordService;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,11 +73,42 @@ impl ShortcutManager {
         }
     }
 
+    pub fn can_start_from_wake_word(ptt_state: PttState, asr_is_recording: bool) -> bool {
+        PttStateMachine::can_start_from_wake_word(ptt_state, asr_is_recording)
+    }
+
+    /// Wake-word entry point: starts Quick Dictation only when idle, and NEVER toggle-stops
+    /// an active or finalizing session or dismisses an open result overlay.
+    pub fn trigger_start_from_wake_word(&self, app: &AppHandle) {
+        let asr_engine = app.state::<Arc<AsrEngine>>();
+        let current_state = self.state_machine.read().state();
+
+        if !Self::can_start_from_wake_word(current_state, asr_engine.is_recording()) {
+            log::info!(
+                "Ignoring wake word trigger while state={:?}, asr_recording={}",
+                current_state,
+                asr_engine.is_recording()
+            );
+            return;
+        }
+
+        if let Some(wake_word) = app.try_state::<Arc<WakeWordService>>() {
+            wake_word.pause();
+        }
+
+        self.state_machine.write().on_press();
+        self.start_quick_dictation(app);
+    }
+
     pub fn trigger_stop(&self, app: &AppHandle) {
         self.stop_quick_dictation(app);
     }
 
-    pub fn update_settings(&self, app: &AppHandle, new_settings: QuickDictationSettings) -> Result<(), String> {
+    pub fn update_settings(
+        &self,
+        app: &AppHandle,
+        new_settings: QuickDictationSettings,
+    ) -> Result<(), String> {
         {
             let mut s = self.settings.write();
             *s = new_settings.clone();
@@ -88,7 +121,12 @@ impl ShortcutManager {
         Ok(())
     }
 
-    pub fn register_shortcut(&self, app: &AppHandle, shortcut_str: &str, enabled: bool) -> Result<(), String> {
+    pub fn register_shortcut(
+        &self,
+        app: &AppHandle,
+        shortcut_str: &str,
+        enabled: bool,
+    ) -> Result<(), String> {
         // Unregister previous
         if let Some(prev) = self.registered_shortcut.write().take() {
             if let Ok(sc) = prev.parse::<Shortcut>() {
@@ -110,7 +148,10 @@ impl ShortcutManager {
             .map_err(|e| format!("Failed to register global shortcut '{shortcut_str}': {e}"))?;
 
         *self.registered_shortcut.write() = Some(shortcut_str.to_string());
-        log::info!("Successfully registered global shortcut: '{}'", shortcut_str);
+        log::info!(
+            "Successfully registered global shortcut: '{}'",
+            shortcut_str
+        );
         Ok(())
     }
 
@@ -145,10 +186,20 @@ impl ShortcutManager {
 
         // 1. Check if studio or another session is recording
         if asr_engine.is_recording() {
-            log::warn!("Cannot start Quick Dictation: another recording session is already active.");
-            let _ = app.emit("quick-dictation://error", "RECORDING_ALREADY_ACTIVE: Recording is already in progress.");
+            log::warn!(
+                "Cannot start Quick Dictation: another recording session is already active."
+            );
+            let _ = app.emit(
+                "quick-dictation://error",
+                "RECORDING_ALREADY_ACTIVE: Recording is already in progress.",
+            );
             self.state_machine.write().on_error();
             return;
+        }
+
+        // Release standby wake-word capture strictly before loading/starting active mic capture.
+        if let Some(wake_word) = app.try_state::<Arc<WakeWordService>>() {
+            wake_word.pause();
         }
 
         // 2. Ensure models are loaded
@@ -158,6 +209,7 @@ impl ShortcutManager {
                 log::error!("Cannot start Quick Dictation: models not loaded: {e}");
                 let _ = app.emit("quick-dictation://error", format!("MODEL_ERROR: {e}"));
                 self.state_machine.write().on_error();
+                self.resume_wake_word_if_idle(app);
                 return;
             }
         };
@@ -166,12 +218,18 @@ impl ShortcutManager {
         capture_foreground_window();
 
         // 4. Start recognition session with QuickDictation origin
-        let session_id = match asr_engine.start_recording(app.clone(), models, SessionOrigin::QuickDictation, None) {
+        let session_id = match asr_engine.start_recording(
+            app.clone(),
+            models,
+            SessionOrigin::QuickDictation,
+            None,
+        ) {
             Ok(sid) => sid,
             Err(e) => {
                 log::error!("Failed to start ASR session: {e}");
                 let _ = app.emit("quick-dictation://error", e);
                 self.state_machine.write().on_error();
+                self.resume_wake_word_if_idle(app);
                 return;
             }
         };
@@ -184,6 +242,7 @@ impl ShortcutManager {
             let _ = asr_engine.cancel_recording(SessionOrigin::QuickDictation);
             let _ = app.emit("quick-dictation://error", format!("MIC_ERROR: {e}"));
             self.state_machine.write().on_error();
+            self.resume_wake_word_if_idle(app);
             return;
         }
 
@@ -206,6 +265,7 @@ impl ShortcutManager {
         self.state_machine.write().reset_to_idle();
         let _ = OverlayManager::hide(app);
         let _ = app.emit("quick-dictation://dismissed", ());
+        self.resume_wake_word_if_idle(app);
     }
 
     fn stop_quick_dictation(&self, app: &AppHandle) {
@@ -219,7 +279,8 @@ impl ShortcutManager {
 
         self.state_machine.write().on_finalized();
 
-        // Keep overlay shown and focused so the user can inspect, edit, and copy the text
+        // Keep overlay shown and focused so the user can inspect, edit, and copy the text.
+        // Voice Activation intentionally remains paused while PttState::Result is active.
         OverlayManager::center_on_active_monitor(app);
         let _ = OverlayManager::show(app, false);
         let _ = app.emit("quick-dictation://finalized", ());
@@ -229,5 +290,15 @@ impl ShortcutManager {
         self.state_machine.write().reset_to_idle();
         let _ = OverlayManager::hide(app);
         let _ = app.emit("quick-dictation://dismissed", ());
+        self.resume_wake_word_if_idle(app);
+    }
+
+    fn resume_wake_word_if_idle(&self, app: &AppHandle) {
+        let asr_engine = app.state::<Arc<AsrEngine>>();
+        if let Some(wake_word) = app.try_state::<Arc<WakeWordService>>() {
+            if !is_voice_activation_paused_for_recording(&asr_engine, self) {
+                wake_word.resume_if_enabled();
+            }
+        }
     }
 }

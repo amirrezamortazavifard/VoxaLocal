@@ -53,6 +53,42 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Download & verify offline wake-word KWS model (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01.tar.bz2"
+          $expected = "F170013B4716E41B62B9BFD809687C207CEF798EF9BC6534D524E17AF9B6561A"
+          $tmp = Join-Path $env:RUNNER_TEMP "kws_model.tar.bz2"
+          Invoke-WebRequest -Uri $url -OutFile $tmp
+          $actual = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToUpper()
+          if ($actual -ne $expected) { throw "SHA256 mismatch: $actual != $expected" }
+          New-Item -ItemType Directory -Force -Path "src-tauri/models/wakeword" | Out-Null
+          tar -xjf $tmp --strip-components=1 -C "src-tauri/models/wakeword"
+          Set-Content -Path "src-tauri/models/wakeword/keywords.txt" -Value "▁HE Y ▁ VO X A @hey_voxa`n" -NoNewline -Encoding utf8
+          Get-Item "src-tauri/models/wakeword/encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx","src-tauri/models/wakeword/decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx","src-tauri/models/wakeword/joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx","src-tauri/models/wakeword/tokens.txt","src-tauri/models/wakeword/keywords.txt" | ForEach-Object { if ($_.Length -eq 0) { throw "Empty wakeword file: $($_.FullName)" } }
+
+      - name: Download & verify offline wake-word KWS model (Unix)
+        if: matrix.platform != 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01.tar.bz2"
+          EXPECTED="f170013b4716e41b62b9bfd809687c207cef798ef9bc6534d524e17af9b6561a"
+          TMP_ARCHIVE="${RUNNER_TEMP}/kws_model.tar.bz2"
+          curl -fsSL "$URL" -o "$TMP_ARCHIVE"
+          if command -v sha256sum >/dev/null 2>&1; then
+            echo "$EXPECTED  $TMP_ARCHIVE" | sha256sum -c -
+          else
+            echo "$EXPECTED  $TMP_ARCHIVE" | shasum -a 256 -c -
+          fi
+          mkdir -p src-tauri/models/wakeword
+          tar -xjf "$TMP_ARCHIVE" --strip-components=1 -C src-tauri/models/wakeword
+          printf '▁HE Y ▁ VO X A @hey_voxa\n' > src-tauri/models/wakeword/keywords.txt
+          for f in encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx tokens.txt keywords.txt; do
+            test -s "src-tauri/models/wakeword/$f"
+          done
+
       - name: Build and package Tauri desktop app
         uses: tauri-apps/tauri-action@v0
         env:

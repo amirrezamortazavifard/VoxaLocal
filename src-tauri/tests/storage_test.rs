@@ -1,6 +1,6 @@
+use parking_lot::Mutex;
 use rusqlite::Connection;
 use std::sync::Arc;
-use parking_lot::Mutex;
 use voxlocal_lib::storage::{HistoryRepository, SettingsRepository, TranscriptRecord};
 
 #[test]
@@ -23,7 +23,8 @@ fn test_database_and_history_crud() {
             value TEXT NOT NULL
         );
         ",
-    ).expect("Init tables failed");
+    )
+    .expect("Init tables failed");
 
     let arc_conn = Arc::new(Mutex::new(conn));
     let history = HistoryRepository::new(Arc::clone(&arc_conn));
@@ -39,7 +40,10 @@ fn test_database_and_history_crud() {
         id: "test-rec-1".to_string(),
         title: "تست بازشناسی گفتار".to_string(),
         text: "این یک آزمایش رونویسی گفتار فارسی است.".to_string(),
-        srt_content: Some("1\n00:00:00,000 --> 00:00:02,000\nاین یک آزمایش رونویسی گفتار فارسی است.\n\n".to_string()),
+        srt_content: Some(
+            "1\n00:00:00,000 --> 00:00:02,000\nاین یک آزمایش رونویسی گفتار فارسی است.\n\n"
+                .to_string(),
+        ),
         language: "fa".to_string(),
         duration_secs: 2.5,
         word_count: 7,

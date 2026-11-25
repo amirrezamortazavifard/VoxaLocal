@@ -103,8 +103,16 @@ fn select_platform_asset(assets: &[GitHubAsset]) -> Option<&GitHubAsset> {
         assets
             .iter()
             .find(|a| a.name.to_lowercase().ends_with("-setup.exe"))
-            .or_else(|| assets.iter().find(|a| a.name.to_lowercase().ends_with(".exe")))
-            .or_else(|| assets.iter().find(|a| a.name.to_lowercase().ends_with(".msi")))
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".exe"))
+            })
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".msi"))
+            })
     }
 
     #[cfg(target_os = "macos")]
@@ -119,7 +127,11 @@ fn select_platform_asset(assets: &[GitHubAsset]) -> Option<&GitHubAsset> {
         assets
             .iter()
             .find(|a| a.name.ends_with(".AppImage"))
-            .or_else(|| assets.iter().find(|a| a.name.to_lowercase().ends_with(".deb")))
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".deb"))
+            })
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -135,14 +147,16 @@ fn download_asset_silently(
     asset_name: &str,
     expected_size: u64,
 ) -> Result<PathBuf, String> {
-    fs::create_dir_all(dest_dir)
-        .map_err(|e| format!("Failed to create updates directory: {e}"))?;
+    fs::create_dir_all(dest_dir).map_err(|e| format!("Failed to create updates directory: {e}"))?;
 
     let final_path = dest_dir.join(asset_name);
     if final_path.exists() {
         if let Ok(meta) = fs::metadata(&final_path) {
             if meta.len() == expected_size && expected_size > 0 {
-                log::info!("Update asset already downloaded and verified: {:?}", final_path);
+                log::info!(
+                    "Update asset already downloaded and verified: {:?}",
+                    final_path
+                );
                 return Ok(final_path);
             }
         }
@@ -284,7 +298,11 @@ pub fn check_and_download_update(
         });
     }
 
-    let latest_clean = release.tag_name.trim().trim_start_matches(['v', 'V']).to_string();
+    let latest_clean = release
+        .tag_name
+        .trim()
+        .trim_start_matches(['v', 'V'])
+        .to_string();
     if !is_newer_version(&current_version, &latest_clean) {
         log::info!(
             "VoxaLocal is up to date (current: v{}, latest: v{}).",

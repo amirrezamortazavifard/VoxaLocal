@@ -1,11 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::SampleFormat;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use parking_lot::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 use crate::asr::events::AudioLevelPayload;
@@ -169,7 +169,13 @@ impl AudioCapture {
                 let app_proc = app.clone();
                 let asr_engine_proc = Arc::clone(&asr_engine);
                 let proc_handle = thread::spawn(move || {
-                    run_capture_processing_loop(app_proc, asr_engine_proc, audio_rx, sample_rate, is_running_proc);
+                    run_capture_processing_loop(
+                        app_proc,
+                        asr_engine_proc,
+                        audio_rx,
+                        sample_rate,
+                        is_running_proc,
+                    );
                 });
 
                 let _ = control_rx.recv();
@@ -361,7 +367,15 @@ fn run_capture_processing_loop(
                 if last_level_emit.elapsed() >= level_emit_interval {
                     let (rms, peak, db) = calculate_rms_and_peak(raw_mono_slice);
                     let is_speech = rms > 0.003 || db > -52.0;
-                    let _ = app.emit("audio://level", AudioLevelPayload { rms, peak, db, is_speech });
+                    let _ = app.emit(
+                        "audio://level",
+                        AudioLevelPayload {
+                            rms,
+                            peak,
+                            db,
+                            is_speech,
+                        },
+                    );
                     last_level_emit = Instant::now();
                 }
 
@@ -389,10 +403,13 @@ fn run_capture_processing_loop(
         }
     }
 
-    let _ = app.emit("audio://level", AudioLevelPayload {
-        rms: 0.0,
-        peak: 0.0,
-        db: -96.0,
-        is_speech: false,
-    });
+    let _ = app.emit(
+        "audio://level",
+        AudioLevelPayload {
+            rms: 0.0,
+            peak: 0.0,
+            db: -96.0,
+            is_speech: false,
+        },
+    );
 }

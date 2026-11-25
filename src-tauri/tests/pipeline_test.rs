@@ -1,5 +1,5 @@
-use voxlocal_lib::commands::file_commands::generate_srt;
 use voxlocal_lib::asr::events::WordItem;
+use voxlocal_lib::commands::file_commands::generate_srt;
 
 #[test]
 fn test_srt_subtitle_generation() {

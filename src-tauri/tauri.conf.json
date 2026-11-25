@@ -48,7 +48,12 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "models/*"
+      "models/*",
+      "models/wakeword/encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
+      "models/wakeword/decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
+      "models/wakeword/joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
+      "models/wakeword/tokens.txt",
+      "models/wakeword/keywords.txt"
     ],
     "icon": [
       "icons/32x32.png",

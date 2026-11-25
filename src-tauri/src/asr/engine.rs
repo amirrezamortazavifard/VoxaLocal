@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use crossbeam_channel::bounded;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tauri::AppHandle;
 use uuid::Uuid;
 
@@ -59,7 +59,10 @@ impl AsrEngine {
         self.settings.read().clone()
     }
 
-    pub fn update_settings(&self, new_settings: RecognitionSettings) -> Result<RecognitionSettings, String> {
+    pub fn update_settings(
+        &self,
+        new_settings: RecognitionSettings,
+    ) -> Result<RecognitionSettings, String> {
         let mut s = self.settings.write();
         *s = new_settings;
         log::info!("Updated ASR recognition settings: {:?}", *s);
@@ -88,7 +91,10 @@ impl AsrEngine {
     }
 
     pub fn active_session_id(&self) -> Option<String> {
-        self.active_session.read().as_ref().map(|s| s.session_id.clone())
+        self.active_session
+            .read()
+            .as_ref()
+            .map(|s| s.session_id.clone())
     }
 
     pub fn start_recording(
@@ -134,7 +140,10 @@ impl AsrEngine {
 
     pub fn feed_audio(&self, pcm_chunk: Vec<f32>) {
         if let Some(active) = self.active_session.read().as_ref() {
-            if let Err(e) = active.command_sender.try_send(SessionCommand::Audio(pcm_chunk)) {
+            if let Err(e) = active
+                .command_sender
+                .try_send(SessionCommand::Audio(pcm_chunk))
+            {
                 log::warn!("Audio queue full or dropped: {e}");
             }
         }
@@ -156,7 +165,11 @@ impl AsrEngine {
             if let Some(handle) = active.worker_handle.take() {
                 let _ = handle.join();
             }
-            log::info!("Recording session stopped [{:?}]: {}", origin, active.session_id);
+            log::info!(
+                "Recording session stopped [{:?}]: {}",
+                origin,
+                active.session_id
+            );
             Ok(())
         } else {
             Ok(())
@@ -179,7 +192,11 @@ impl AsrEngine {
             if let Some(handle) = active.worker_handle.take() {
                 let _ = handle.join();
             }
-            log::info!("Recording session cancelled [{:?}]: {}", origin, active.session_id);
+            log::info!(
+                "Recording session cancelled [{:?}]: {}",
+                origin,
+                active.session_id
+            );
             Ok(())
         } else {
             Ok(())

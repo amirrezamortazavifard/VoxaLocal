@@ -13,9 +13,7 @@ pub struct AudioDeviceInfo {
 
 pub fn list_input_devices() -> Result<Vec<AudioDeviceInfo>, String> {
     let host = cpal::default_host();
-    let default_device_name = host
-        .default_input_device()
-        .and_then(|d| d.name().ok());
+    let default_device_name = host.default_input_device().and_then(|d| d.name().ok());
 
     let devices = host
         .input_devices()
@@ -45,7 +43,9 @@ pub fn list_input_devices() -> Result<Vec<AudioDeviceInfo>, String> {
     Ok(result)
 }
 
-pub fn get_input_device(name: Option<&str>) -> Result<(cpal::Device, cpal::SupportedStreamConfig), String> {
+pub fn get_input_device(
+    name: Option<&str>,
+) -> Result<(cpal::Device, cpal::SupportedStreamConfig), String> {
     let host = cpal::default_host();
 
     let device = match name {

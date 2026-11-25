@@ -16,6 +16,9 @@ Cargo.lock.bak
 # Tauri
 src-tauri/gen/
 release_builds/
+src-tauri/models/wakeword/
+*.onnx
+*.tar.bz2
 
 # Compiled Binaries & Installers
 *.exe

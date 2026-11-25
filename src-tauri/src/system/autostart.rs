@@ -46,7 +46,10 @@ pub fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let (run_key, _) = hkcu
-            .create_subkey_with_flags("Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_WRITE)
+            .create_subkey_with_flags(
+                "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                KEY_WRITE,
+            )
             .map_err(|e| format!("Failed to open Windows Startup registry key: {e}"))?;
 
         if enabled {
@@ -62,7 +65,9 @@ pub fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
                     log::info!("Windows Startup autostart was already disabled.");
                 }
                 Err(e) => {
-                    return Err(format!("Failed to remove Windows Startup registry value: {e}"));
+                    return Err(format!(
+                        "Failed to remove Windows Startup registry value: {e}"
+                    ));
                 }
             }
         }

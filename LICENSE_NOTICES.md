@@ -34,7 +34,15 @@ The speech recognition models were trained primarily on:
 
 ---
 
-## 4. Third-Party Libraries
+## 4. Offline Wake-Word Detection (Sherpa-ONNX KWS)
+
+Optional hands-free wake-word detection (`Hey Voxa`) uses **Sherpa-ONNX** and the **GigaSpeech Zipformer KWS 3.3M** model:
+- **Runtime / Crate**: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) — Apache License 2.0
+- **KWS Model**: `sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01` — Apache License 2.0
+
+---
+
+## 5. Third-Party Libraries
 
 - **Tauri**: Apache-2.0 / MIT
 - **CPAL**: Apache-2.0

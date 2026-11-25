@@ -25,6 +25,7 @@ VoxLocal is engineered to run with zero network connectivity:
    - Audio is captured from the selected microphone device via CPAL.
    - Raw audio samples reside strictly in volatile RAM within bounded ring buffers.
    - Audio is never written to disk during live streaming unless the user explicitly saves a transcript.
+   - Optional Voice Activation (`Hey Voxa`, disabled by default) runs a local 1-thread Sherpa-ONNX `KeywordSpotter` on CPU in `wake_only` mode without saving or transmitting standby audio, and immediately releases the standby microphone stream before opening active dictation capture.
 2. **File Transcription**:
    - Audio files are decoded locally using the pure-Rust `Symphonia` library.
    - Decompressed PCM samples are fed directly to `tinyasr::Transcription` in memory.

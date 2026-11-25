@@ -67,11 +67,7 @@ impl AudioResampler {
         while t < limit {
             let k = t.floor() as isize;
             let f = (t - (k as f64)) as f32;
-            let a = if k < 0 {
-                self.q
-            } else {
-                x[k as usize]
-            };
+            let a = if k < 0 { self.q } else { x[k as usize] };
             let b = if (k + 1) < n as isize {
                 x[(k + 1) as usize]
             } else {

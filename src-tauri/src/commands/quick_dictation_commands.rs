@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
 use crate::shortcuts::manager::{QuickDictationSettings, ShortcutManager};
 use crate::shortcuts::state_machine::PttState;
 use crate::storage::SettingsRepository;
 use crate::system::paste::paste_text_to_active_app;
+use std::sync::Arc;
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 pub fn get_quick_dictation_settings(

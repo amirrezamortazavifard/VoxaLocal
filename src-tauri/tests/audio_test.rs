@@ -9,9 +9,7 @@ fn test_rms_and_peak_calculation() {
     assert_eq!(peak, 0.0);
     assert!(db <= -96.0);
 
-    let sine_wave: Vec<f32> = (0..1000)
-        .map(|i| (i as f32 * 0.1).sin() * 0.5)
-        .collect();
+    let sine_wave: Vec<f32> = (0..1000).map(|i| (i as f32 * 0.1).sin() * 0.5).collect();
     let (rms2, peak2, db2) = calculate_rms_and_peak(&sine_wave);
     assert!(rms2 > 0.3 && rms2 < 0.4);
     assert!((peak2 - 0.5).abs() < 0.01);
@@ -32,8 +30,15 @@ fn test_resampling_48k_to_16k() {
 
     // 1 second of audio at 16kHz should be approximately 16000 samples
     let ratio = output.len() as f32 / 16000.0;
-    println!("Resampled 48k (48000) -> 16k ({}) ratio: {}", output.len(), ratio);
-    assert!((ratio - 1.0).abs() < 0.05, "Expected ~16000 resampled samples");
+    println!(
+        "Resampled 48k (48000) -> 16k ({}) ratio: {}",
+        output.len(),
+        ratio
+    );
+    assert!(
+        (ratio - 1.0).abs() < 0.05,
+        "Expected ~16000 resampled samples"
+    );
 }
 
 #[test]
@@ -45,8 +50,15 @@ fn test_resampling_44100_to_16k() {
     output.extend(flushed);
 
     let ratio = output.len() as f32 / 16000.0;
-    println!("Resampled 44.1k (44100) -> 16k ({}) ratio: {}", output.len(), ratio);
-    assert!((ratio - 1.0).abs() < 0.05, "Expected ~16000 resampled samples");
+    println!(
+        "Resampled 44.1k (44100) -> 16k ({}) ratio: {}",
+        output.len(),
+        ratio
+    );
+    assert!(
+        (ratio - 1.0).abs() < 0.05,
+        "Expected ~16000 resampled samples"
+    );
 }
 
 #[test]
@@ -79,19 +91,26 @@ fn test_cpal_input_device() {
     println!("CPAL Default input device: {:?}", default_in.name().ok());
 
     let cfg = default_in.default_input_config().expect("default config");
-    println!("Default input config: channels={}, sample_rate={}, format={:?}", cfg.channels(), cfg.sample_rate().0, cfg.sample_format());
+    println!(
+        "Default input config: channels={}, sample_rate={}, format={:?}",
+        cfg.channels(),
+        cfg.sample_rate().0,
+        cfg.sample_format()
+    );
 
     let count = Arc::new(AtomicUsize::new(0));
     let c_clone = Arc::clone(&count);
 
-    let stream = default_in.build_input_stream(
-        &cfg.into(),
-        move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            c_clone.fetch_add(data.len(), Ordering::SeqCst);
-        },
-        |err| eprintln!("Stream err: {err}"),
-        None,
-    ).expect("build stream");
+    let stream = default_in
+        .build_input_stream(
+            &cfg.into(),
+            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                c_clone.fetch_add(data.len(), Ordering::SeqCst);
+            },
+            |err| eprintln!("Stream err: {err}"),
+            None,
+        )
+        .expect("build stream");
 
     stream.play().expect("play stream");
     std::thread::sleep(Duration::from_millis(300));
@@ -109,12 +128,17 @@ fn test_resampling_long_30min_48k_to_16k() {
     let mut out_len = 0usize;
 
     for _ in 0..(total_samples / chunk.len()) {
-        let out = resampler.process(&chunk).expect("Failed to resample long chunk");
+        let out = resampler
+            .process(&chunk)
+            .expect("Failed to resample long chunk");
         out_len += out.len();
     }
     out_len += resampler.flush().expect("Failed to flush").len();
 
     let expected = 28_800_000usize; // 30 minutes at 16 kHz
     let ratio = out_len as f64 / expected as f64;
-    assert!((ratio - 1.0).abs() < 0.001, "Expected ~28.8M samples, got {out_len}");
+    assert!(
+        (ratio - 1.0).abs() < 0.001,
+        "Expected ~28.8M samples, got {out_len}"
+    );
 }

@@ -6,9 +6,10 @@ pub mod shortcuts;
 pub mod storage;
 pub mod system;
 pub mod tray;
+pub mod wake_word;
 
 use std::sync::Arc;
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 use crate::asr::{AsrEngine, ModelManager};
 use crate::audio::AudioCapture;
@@ -16,6 +17,7 @@ use crate::commands::*;
 use crate::shortcuts::manager::{QuickDictationSettings, ShortcutManager};
 use crate::storage::{Database, HistoryRepository, SettingsRepository};
 use crate::tray::manager::TrayManager;
+use crate::wake_word::{VoiceActivationSettings, WakeWordService, VOICE_ACTIVATION_SETTINGS_KEY};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -104,6 +106,30 @@ pub fn run() {
                 let file_transcription_manager = Arc::new(crate::commands::file_commands::FileTranscriptionManager::default());
                 let updater_state = Arc::new(crate::system::updater::UpdaterState::new(app_data_dir.clone()));
 
+                let wake_word_service = WakeWordService::new();
+                let saved_voice_activation = match settings_repo.get(VOICE_ACTIVATION_SETTINGS_KEY) {
+                    Ok(Some(raw)) => VoiceActivationSettings::from_persisted_json(&raw),
+                    _ => VoiceActivationSettings::default(),
+                };
+                wake_word_service.hydrate_settings(saved_voice_activation.clone());
+
+                let app_handle_status = app.handle().clone();
+                let app_handle_wake = app.handle().clone();
+                let shortcut_mgr_wake = Arc::clone(&shortcut_manager);
+                wake_word_service.configure_runtime(
+                    Some(Arc::new(move |payload| {
+                        let _ = app_handle_status.emit(
+                            crate::wake_word::VOICE_ACTIVATION_STATUS_EVENT,
+                            payload,
+                        );
+                    })),
+                    Some(app_data_dir.clone()),
+                    app.path().resource_dir().ok(),
+                    Some(Arc::new(move || {
+                        shortcut_mgr_wake.trigger_start_from_wake_word(&app_handle_wake);
+                    })),
+                );
+
                 // Setup system tray
                 if let Err(e) = TrayManager::setup(&app.handle()) {
                     log::warn!("System tray setup warning: {e}");
@@ -118,6 +144,20 @@ pub fn run() {
                 app.manage(settings_repo.clone());
                 app.manage(shortcut_manager);
                 app.manage(Arc::clone(&updater_state));
+                app.manage(Arc::clone(&wake_word_service));
+
+                if saved_voice_activation.enabled {
+                    let ww_boot = Arc::clone(&wake_word_service);
+                    let asr_boot = Arc::clone(&asr_engine);
+                    let sm_boot = app.state::<Arc<ShortcutManager>>().inner().clone();
+                    std::thread::spawn(move || {
+                        if !crate::commands::voice_activation_commands::is_voice_activation_paused_for_recording(&asr_boot, &sm_boot) {
+                            if let Err(e) = ww_boot.start_listening() {
+                                log::warn!("Voice Activation startup warning: {e}");
+                            }
+                        }
+                    });
+                }
 
                 // Pre-load ASR models in RAM in background for zero-latency dictation
                 let asr_engine_preload = Arc::clone(&asr_engine);
@@ -192,6 +232,9 @@ pub fn run() {
             clear_history,
             get_quick_dictation_settings,
             update_quick_dictation_settings,
+            get_voice_activation_settings,
+            update_voice_activation_settings,
+            get_voice_activation_status,
             trigger_quick_dictation_paste,
             dismiss_quick_dictation,
             open_in_studio,
@@ -209,6 +252,13 @@ pub fn run() {
             get_pending_update,
             install_and_restart_update,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running VoxLocal application");
+        .build(tauri::generate_context!())
+        .expect("error while building VoxLocal application")
+        .run(|app_handle, event| {
+            if let RunEvent::Exit = event {
+                if let Some(wake_word) = app_handle.try_state::<Arc<WakeWordService>>() {
+                    wake_word.shutdown();
+                }
+            }
+        });
 }

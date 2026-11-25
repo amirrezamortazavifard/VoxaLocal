@@ -14,11 +14,13 @@ impl AudioBufferStats {
     }
 
     pub fn record_captured(&self, count: usize) {
-        self.total_samples.fetch_add(count as u64, Ordering::Relaxed);
+        self.total_samples
+            .fetch_add(count as u64, Ordering::Relaxed);
     }
 
     pub fn record_dropped(&self, count: usize) {
-        self.dropped_samples.fetch_add(count as u64, Ordering::Relaxed);
+        self.dropped_samples
+            .fetch_add(count as u64, Ordering::Relaxed);
     }
 
     pub fn dropped_count(&self) -> u64 {

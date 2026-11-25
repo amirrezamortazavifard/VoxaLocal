@@ -1,8 +1,8 @@
+use parking_lot::Mutex;
+use rusqlite::Connection;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use parking_lot::Mutex;
-use rusqlite::Connection;
 
 pub struct Database {
     pub db_path: PathBuf,
