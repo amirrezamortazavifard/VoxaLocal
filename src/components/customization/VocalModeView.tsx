@@ -48,7 +48,7 @@ export const VocalModeView: React.FC = () => {
             if (typeof p.vadThreshold === 'number') setVadThreshold(p.vadThreshold);
             if (typeof p.silenceTimeout === 'number') setSilenceTimeout(p.silenceTimeout);
             if (typeof p.soundFeedback === 'boolean') setSoundFeedback(p.soundFeedback);
-          } catch {}
+          } catch { }
         }
       })
       .catch(console.error);
@@ -69,7 +69,7 @@ export const VocalModeView: React.FC = () => {
     );
 
     return () => {
-      unlistenPromise.then((fn) => fn()).catch(() => {});
+      unlistenPromise.then((fn) => fn()).catch(() => { });
     };
   }, []);
 
@@ -185,11 +185,10 @@ export const VocalModeView: React.FC = () => {
           {/* Push To Talk */}
           <div
             onClick={() => handleSave('pushToTalk')}
-            className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
-              mode === 'pushToTalk'
-                ? 'bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/10'
-                : 'bg-[#18191d] border-white/[0.08] hover:border-white/20'
-            }`}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${mode === 'pushToTalk'
+              ? 'bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/10'
+              : 'bg-[#18191d] border-white/[0.08] hover:border-white/20'
+              }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-white">{t('modePushToTalk')}</span>
@@ -205,11 +204,10 @@ export const VocalModeView: React.FC = () => {
           {/* Toggle */}
           <div
             onClick={() => handleSave('toggle')}
-            className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
-              mode === 'toggle'
-                ? 'bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/10'
-                : 'bg-[#18191d] border-white/[0.08] hover:border-white/20'
-            }`}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${mode === 'toggle'
+              ? 'bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/10'
+              : 'bg-[#18191d] border-white/[0.08] hover:border-white/20'
+              }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-white">{t('modeToggle')}</span>
@@ -305,16 +303,14 @@ export const VocalModeView: React.FC = () => {
             disabled={vaSaving}
             onClick={handleToggleVoiceActivation}
             aria-checked={vaSettings.enabled}
-            className={`flex items-center gap-2.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shrink-0 cursor-pointer disabled:opacity-50 whitespace-nowrap ${
-              vaSettings.enabled
-                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
-                : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-500'
-            }`}
+            className={`flex items-center gap-2.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shrink-0 cursor-pointer disabled:opacity-50 whitespace-nowrap ${vaSettings.enabled
+              ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
+              : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-500'
+              }`}
           >
             <span
-              className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${
-                vaSettings.enabled ? 'bg-cyan-400 justify-end' : 'bg-slate-600 justify-start'
-              }`}
+              className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${vaSettings.enabled ? 'bg-cyan-400 justify-end' : 'bg-slate-600 justify-start'
+                }`}
             >
               <span className="w-3 h-3 rounded-full bg-slate-950 shadow-sm" />
             </span>
@@ -351,9 +347,8 @@ export const VocalModeView: React.FC = () => {
           </div>
 
           <span
-            className={`text-[11px] font-medium whitespace-nowrap ${
-              vaStatus.modelReady ? 'text-emerald-400' : 'text-amber-400'
-            }`}
+            className={`text-[11px] font-medium whitespace-nowrap ${vaStatus.modelReady ? 'text-emerald-400' : 'text-amber-400'
+              }`}
           >
             {vaStatus.modelReady ? t('vaModelReady') : t('vaModelMissing')}
           </span>

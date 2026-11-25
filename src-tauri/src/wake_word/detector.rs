@@ -206,7 +206,7 @@ impl SherpaKwsDetector {
         config.model_config.num_threads = 1;
         config.model_config.provider = Some("cpu".to_string());
         config.model_config.debug = false;
-        config.max_active_paths = 4;
+        config.max_active_paths = 8;
         config.num_trailing_blanks = 1;
         config.keywords_score = keywords_score;
         config.keywords_threshold = keywords_threshold;
@@ -223,7 +223,7 @@ impl SherpaKwsDetector {
     }
 
     pub fn from_paths_default(paths: &WakeWordModelPaths) -> Result<Self, String> {
-        Self::from_paths(paths, 2.0, 0.18)
+        Self::from_paths(paths, 2.6, 0.14)
     }
 
     pub fn create_stream_with_keywords(&self, keywords: &str) -> OnlineStream {

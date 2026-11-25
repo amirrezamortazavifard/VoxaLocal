@@ -366,5 +366,22 @@ fn sherpa_onnx_kws_model_load_and_wav_poc() {
             "Sherpa-ONNX KWS PoC detected keyword in 0.wav: {:?}",
             spotted
         );
+
+        // 4. Verify tuned Hey Voxa detector has 0 false positives on 0.wav & 1.wav continuous speech.
+        let mut neg_detector =
+            SherpaKwsDetector::from_paths_default(&paths).expect("load default Hey Voxa detector");
+        for neg_name in ["0.wav", "1.wav"] {
+            let neg_wav = paths.dir.join("test_wavs").join(neg_name);
+            if neg_wav.is_file() {
+                let w = sherpa_onnx::Wave::read(&neg_wav.to_string_lossy()).expect("read neg wav");
+                for chunk in w.samples().chunks(640) {
+                    assert_eq!(
+                        neg_detector.accept_samples(chunk),
+                        None,
+                        "Unexpected Hey Voxa false positive on {neg_name}"
+                    );
+                }
+            }
+        }
     }
 }
