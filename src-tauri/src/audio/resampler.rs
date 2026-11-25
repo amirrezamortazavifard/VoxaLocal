@@ -1,11 +1,13 @@
 /// Ultra-low-latency real-time streaming resampler matching the TinyASR native web worklet:
 /// Linear interpolation over a 3-tap moving average anti-aliasing filter, emitting
 /// in exact 640-sample (40 ms) frames with zero block latency.
+/// Uses `f64` sample-position accumulators so multi-hour audio files (> 2^24 samples)
+/// never hit `f32` ULP rounding stagnation (`t + r == t`).
 pub struct AudioResampler {
     source_rate: u32,
     target_rate: u32,
-    r: f32,
-    t: f32,
+    r: f64,
+    t: f64,
     p: f32,
     q: f32,
     out_buffer: Vec<f32>,
@@ -17,7 +19,7 @@ impl AudioResampler {
             return Err("Sample rate must be greater than 0".to_string());
         }
 
-        let r = source_rate as f32 / target_rate as f32;
+        let r = source_rate as f64 / target_rate as f64;
         Ok(Self {
             source_rate,
             target_rate,
@@ -61,15 +63,16 @@ impl AudioResampler {
         }
 
         let mut t = self.t;
-        while t < (n as f32 - 1.0) {
-            let k = t.floor() as i32;
-            let f = t - (k as f32);
+        let limit = (n as f64) - 1.0;
+        while t < limit {
+            let k = t.floor() as isize;
+            let f = (t - (k as f64)) as f32;
             let a = if k < 0 {
                 self.q
             } else {
                 x[k as usize]
             };
-            let b = if (k + 1) < n as i32 {
+            let b = if (k + 1) < n as isize {
                 x[(k + 1) as usize]
             } else {
                 x[k as usize]
@@ -78,7 +81,7 @@ impl AudioResampler {
             t += r;
         }
 
-        self.t = t - (n as f32);
+        self.t = t - (n as f64);
         self.p = input[n - 1];
         self.q = x[n - 1];
 

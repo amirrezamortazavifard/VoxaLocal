@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use symphonia::core::audio::{AudioBufferRef, Signal};
+use symphonia::core::audio::{AudioBufferRef, SampleBuffer, Signal};
 use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL, CODEC_TYPE_OPUS};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::FormatOptions;
@@ -234,10 +234,44 @@ fn extract_mono_f32(buf: &AudioBufferRef, channels: usize, out: &mut Vec<f32>) {
                 out.push((sum / channels as f32).clamp(-1.0, 1.0));
             }
         }
-        _ => {
-            // Fallback: convert via sample conversion
+        other => {
+            // Generic fallback covering S24, S32, F64, U16, U24, U32, S8, etc.
+            let spec = *other.spec();
+            let frames = other.frames();
+            let ch_count = spec.channels.count().max(1);
+            let mut sample_buf = SampleBuffer::<f32>::new(frames as u64, spec);
+            sample_buf.copy_interleaved_ref(other.clone());
+            let samples = sample_buf.samples();
+            if ch_count == 1 {
+                out.extend_from_slice(samples);
+            } else {
+                for frame in samples.chunks_exact(ch_count) {
+                    let sum: f32 = frame.iter().sum();
+                    out.push((sum / ch_count as f32).clamp(-1.0, 1.0));
+                }
+            }
         }
     }
+}
+
+/// Resamples a decoded mono buffer to 16 kHz in bounded chunks so long recordings (30+ minutes)
+/// use minimal scratch memory and never hit floating-point position precision limits.
+fn resample_to_16k(raw_samples: Vec<f32>, sample_rate: u32) -> Result<Vec<f32>, String> {
+    if sample_rate == 16000 {
+        return Ok(raw_samples);
+    }
+
+    let expected_len = ((raw_samples.len() as u64 * 16000) / sample_rate.max(1) as u64) as usize + 1280;
+    let mut pcm_16k = Vec::with_capacity(expected_len);
+    let mut resampler = AudioResampler::new(sample_rate, 16000)?;
+
+    for chunk in raw_samples.chunks(65536) {
+        let resampled = resampler.process(chunk)?;
+        pcm_16k.extend_from_slice(&resampled);
+    }
+    let flushed = resampler.flush()?;
+    pcm_16k.extend_from_slice(&flushed);
+    Ok(pcm_16k)
 }
 
 pub fn transcribe_file(
@@ -257,16 +291,7 @@ pub fn transcribe_file(
         return Err("Audio file is empty or could not be decoded".to_string());
     }
 
-    // Resample to 16,000 Hz if needed
-    let pcm_16k = if sample_rate != 16000 {
-        let mut resampler = AudioResampler::new(sample_rate, 16000)?;
-        let mut resampled = resampler.process(&raw_samples)?;
-        let flushed = resampler.flush()?;
-        resampled.extend(flushed);
-        resampled
-    } else {
-        raw_samples
-    };
+    let pcm_16k = resample_to_16k(raw_samples, sample_rate)?;
 
     let langs_vec: Vec<&str> = match language_mode {
         "fa" => vec!["fa"],
@@ -476,30 +501,13 @@ pub fn start_file_transcription_job(
             return;
         }
 
-        // Resample to 16,000 Hz if needed
-        let pcm_16k = if sample_rate != 16000 {
-            match AudioResampler::new(sample_rate, 16000) {
-                Ok(mut resampler) => {
-                    match resampler.process(&raw_samples) {
-                        Ok(mut resampled) => {
-                            if let Ok(flushed) = resampler.flush() {
-                                resampled.extend(flushed);
-                            }
-                            resampled
-                        }
-                        Err(e) => {
-                            let _ = app.emit("file-transcribe://error", format!("Resampling failed: {e}"));
-                            return;
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = app.emit("file-transcribe://error", format!("Resampler init failed: {e}"));
-                    return;
-                }
+        // Resample to 16,000 Hz in bounded chunks (frees raw_samples immediately)
+        let pcm_16k = match resample_to_16k(raw_samples, sample_rate) {
+            Ok(p) => p,
+            Err(e) => {
+                let _ = app.emit("file-transcribe://error", format!("Resampling failed: {e}"));
+                return;
             }
-        } else {
-            raw_samples
         };
 
         let langs_vec: Vec<&str> = match lang.as_str() {

@@ -99,3 +99,22 @@ fn test_cpal_input_device() {
     println!("Captured samples in 300ms: {}", samples);
     assert!(samples > 0, "CPAL WASAPI must capture audio frames!");
 }
+
+#[test]
+fn test_resampling_long_30min_48k_to_16k() {
+    // 30 minutes at 48 kHz = 86,400,000 samples (> 2^26 = 67,108,864 where f32 precision would stall t += 3.0)
+    let mut resampler = AudioResampler::new(48000, 16000).expect("Failed to init resampler");
+    let total_samples = 86_400_000usize;
+    let chunk = vec![0.05f32; 480_000]; // 10 seconds per chunk
+    let mut out_len = 0usize;
+
+    for _ in 0..(total_samples / chunk.len()) {
+        let out = resampler.process(&chunk).expect("Failed to resample long chunk");
+        out_len += out.len();
+    }
+    out_len += resampler.flush().expect("Failed to flush").len();
+
+    let expected = 28_800_000usize; // 30 minutes at 16 kHz
+    let ratio = out_len as f64 / expected as f64;
+    assert!((ratio - 1.0).abs() < 0.001, "Expected ~28.8M samples, got {out_len}");
+}
