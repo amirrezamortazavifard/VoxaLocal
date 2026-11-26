@@ -21,6 +21,10 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-rose?style=flat-square" alt="License"></a>
 </p>
 
+<p align="center">
+  <img src="public/banner.jpg" alt="VoxaLocal — Offline Speech Recognition Studio Banner" width="100%" />
+</p>
+
 ---
 
 ## 🌟 Overview
